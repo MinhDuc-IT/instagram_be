@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               Int                @id @default(autoincrement())
+  userName         String
+  email            String             @unique
+  password         String
+  gender           Int?
+  phone            String?
+  role             String             @default("USER") // USER, ADMIN, SUPERADMIN
+  authId           String?
+  trialExpiresAt   DateTime?
+  isVerified       Boolean            @default(false)
+  lastLogin        DateTime?
+  UserDevice       UserDevice[]
+  UserToken        UserToken[]
+  UserVerification UserVerification[]
+}
+
+model UserDevice {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  deviceName   String // User agent info
+  userAgent    String // User agent info
+  deviceType   String // Mobile, Desktop, etc.
+  ipAddress    String
+  location     String? // Geo info based on IP
+  refreshToken String // Hashed token
+  lastActive   DateTime @default(now())
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relationships
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokens UserToken[]
+
+  @@index([userId])
+  @@map("user_devices")
+}
+
+model UserToken {
+  id                 Int      @id @default(autoincrement())
+  userId             Int
+  deviceId           Int
+  refreshToken       String // Hashed token
+  refreshTokenFamily String // For rotation tracking
+  expiresAt          DateTime
+  invalidated        Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  // Relationships
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  device UserDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([userId, deviceId])
+  @@index([refreshTokenFamily])
+  @@map("user_tokens")
+}
+
+model UserVerification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  token     String   @unique
+  expiresAt DateTime
+  isUsed    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_verifications")
+}
