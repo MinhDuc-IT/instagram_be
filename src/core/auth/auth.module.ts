@@ -7,6 +7,7 @@ import { UserService } from "./user.service";
 import { TokenService } from "./token.service";
 import { DeviceTrackingService } from "./device-tracking.service";
 import { PrismaService } from "../prisma/prisma.service";
+import { EmailService } from "../email/email.service";
 
 @Module({
     imports: [
@@ -27,6 +28,7 @@ import { PrismaService } from "../prisma/prisma.service";
         TokenService, UserService,
         DeviceTrackingService,
         PrismaService,
+        EmailService
     ],
     exports: [AuthService, TokenService, UserService, PrismaService],
 })
