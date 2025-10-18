@@ -19,13 +19,16 @@ model User {
   trialExpiresAt   DateTime?
   isVerified       Boolean            @default(false)
   lastLogin        DateTime?
-  createdAt        DateTime           @default(now())
-  createdBy        String?
-  modifiedAt       DateTime?
-  modifiedBy       String?
-  deleted          Boolean            @default(false)
-  deletedAt        DateTime?
-  deletedBy        String?
+
+  /// 🔍 Audit fields
+  createdAt       DateTime          @default(now())
+  createdBy       String?
+  modifiedAt      DateTime?
+  modifiedBy      String?
+  deleted         Boolean           @default(false)
+  deletedAt       DateTime?
+  deletedBy       String?
+
   UserDevice       UserDevice[]
   UserToken        UserToken[]
   UserVerification UserVerification[]
