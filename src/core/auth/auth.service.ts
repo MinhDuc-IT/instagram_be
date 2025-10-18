@@ -10,6 +10,7 @@ import { ClientMetadata, RegisterUserDto } from './dto/register.dto';
 import { LoginResponseDto, LoginUserDto } from './dto/login.dto';
 import { CacheKeyBuilder, CacheConfig } from 'src/core/cache/cache.config';
 import { CacheService } from 'src/core/cache/cache.service';
+import { EmailService } from 'src/core/email/email.service';
 import { UserService } from './user.service';
 import { TokenService } from "./token.service";
 import { DeviceTrackingService } from './device-tracking.service';
@@ -25,7 +26,8 @@ export class AuthService {
         private readonly userService: UserService,
         private readonly tokenService: TokenService,
         private readonly deviceTrackingService: DeviceTrackingService,
-        // private readonly cacheService: CacheService,
+        private readonly cacheService: CacheService,
+        private readonly emailService: EmailService,
     ) { }
 
     async register(registerDto: RegisterUserDto, clientMetadata: ClientMetadata) {
@@ -85,7 +87,7 @@ export class AuthService {
         );
 
         // Cache user data
-        // await this.cacheUser(user);
+        await this.cacheUser(user);
 
         // Send verification email
         await this.sendVerificationEmail(user);
@@ -100,14 +102,14 @@ export class AuthService {
         };
     }
 
-    // private async cacheUser(user: any): Promise<void> {
-    //     const userCacheKey = CacheKeyBuilder.userProfile(user.id);
-    //     await this.cacheService.set(
-    //         userCacheKey,
-    //         JSON.stringify(user),
-    //         CacheConfig.ttl.MEDIUM,
-    //     );
-    // }
+    private async cacheUser(user: any): Promise<void> {
+        const userCacheKey = CacheKeyBuilder.userProfile(user.id);
+        await this.cacheService.set(
+            userCacheKey,
+            JSON.stringify(user),
+            CacheConfig.ttl.MEDIUM,
+        );
+    }
 
     async login(
         loginDto: LoginUserDto,
@@ -192,12 +194,12 @@ export class AuthService {
 
     private async findUserByCredential(credential: string): Promise<any> {
         // Try cache first for performance
-        // const cacheKey = `auth:credential:${credential}`;
-        // const cachedUserId = await this.cacheService.get(cacheKey);
+        const cacheKey = `auth:credential:${credential}`;
+        const cachedUserId = await this.cacheService.get(cacheKey);
 
-        // if (cachedUserId) {
-        //     return this.userService.findById(Number(cachedUserId));
-        // }
+        if (cachedUserId) {
+            return this.userService.findById(Number(cachedUserId));
+        }
 
         // Query database if not in cache
         const user = await this.userService.findByEmailOrUsername(
@@ -225,13 +227,13 @@ export class AuthService {
         ipAddress: string,
     ): Promise<void> {
         // Implement rate limiting for security
-        // const rateLimitKey = `auth:ratelimit:${ipAddress}`;
-        // const result = await this.cacheService.rateLimitCheck(
-        //     rateLimitKey,
-        //     5, // Max 5 attempts
-        //     300, // Within 5 minutes
-        // );!result.allowed
-        if (true) {
+        const rateLimitKey = `auth:ratelimit:${ipAddress}`;
+        const result = await this.cacheService.rateLimitCheck(
+            rateLimitKey,
+            5, // Max 5 attempts
+            300, // Within 5 minutes
+        );
+        if (!result.allowed) {
             this.logger.warn(`Rate limit exceeded for IP: ${ipAddress}`);
             throw new UnauthorizedException(
                 'Too many failed attempts. Please try again later.',
@@ -347,21 +349,21 @@ export class AuthService {
             );
 
             // Verification link
-            // const verificationLink = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
+            const verificationLink = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
 
             // Send email
-            // await this.emailService.sendEmail({
-            //   recipients: [user.email],
-            //   subject: 'Verify Your Email Address',
-            //   body: `
-            //     <h1>Welcome to our platform!</h1>
-            //     <p>Please verify your email address by clicking the link below:</p>
-            //     <p><a href="${verificationLink}">Verify Email</a></p>
-            //     <p>This link will expire in 3 days.</p>
-            //     <p>If you didn't create this account, please ignore this email.</p>
-            //   `,
-            //   isHtml: true,
-            // });
+            await this.emailService.sendEmail({
+              recipients: [user.email],
+              subject: 'Verify Your Email Address',
+              body: `
+                <h1>Welcome to our platform!</h1>
+                <p>Please verify your email address by clicking the link below:</p>
+                <p><a href="${verificationLink}">Verify Email</a></p>
+                <p>This link will expire in 3 days.</p>
+                <p>If you didn't create this account, please ignore this email.</p>
+              `,
+              isHtml: true,
+            });
         } catch (error) {
             this.logger.error(`Failed to send verification email: ${error.message}`);
             // Don't throw error to prevent registration process from failing

@@ -6,7 +6,7 @@ import { CacheKeyBuilder } from "src/core/cache/cache.config";
 @Injectable()
 export class UserService {
     // User service methods would be defined here
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(private readonly prisma: PrismaService, private readonly cacheService: CacheService) { }
 
     async findByEmailOrUsername(email: string, userName: string) {
         return this.prisma.user.findFirst({
@@ -30,31 +30,31 @@ export class UserService {
         });
     }
 
-    // async findById(userId: number) {
-    //     // Try to get from cache first
-    //     const cacheKey = CacheKeyBuilder.userProfile(userId);
-    //     // const cachedUser = await this.cacheService.get(cacheKey);
+    async findById(userId: number) {
+        // Try to get from cache first
+        const cacheKey = CacheKeyBuilder.userProfile(userId);
+        const cachedUser = await this.cacheService.get(cacheKey);
 
-    //     if (cachedUser) {
-    //         return JSON.parse(cachedUser);
-    //     }
+        if (cachedUser) {
+            return JSON.parse(cachedUser);
+        }
 
-    //     // If not in cache, get from database
-    //     const user = await this.prisma.user.findUnique({
-    //         where: { id: userId },
-    //     });
+        // If not in cache, get from database
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+        });
 
-    //     // Cache the result if found
-    //     if (user) {
-    //         await this.cacheService.set(
-    //             cacheKey,
-    //             JSON.stringify(user),
-    //             3600, // 1 hour
-    //         );
-    //     }
+        // Cache the result if found
+        if (user) {
+            await this.cacheService.set(
+                cacheKey,
+                JSON.stringify(user),
+                3600, // 1 hour
+            );
+        }
 
-    //     return user;
-    // }
+        return user;
+    }
 
     async updateLastLogin(userId: number): Promise<void> {
         await this.prisma.user.update({

@@ -19,7 +19,7 @@ export class TokenService {
         private readonly jwtService: JwtService,
         private readonly configService: ConfigService,
         private readonly prisma: PrismaService,
-        // private readonly cacheService: CacheService,
+        private readonly cacheService: CacheService,
     ) {
         this.accessTokenSecret = this.configService.get<string>('JWT_SECRET') ?? '';
         this.accessTokenExpiry = Number(this.configService.get<string>(
@@ -84,12 +84,12 @@ export class TokenService {
         });
 
         // Cache the token validity
-        // const cacheKey = `token:refresh:${hashedToken}`;
-        // await this.cacheService.set(
-        //     cacheKey,
-        //     JSON.stringify({ userId, deviceId, tokenFamily, valid: true }),
-        //     this.refreshTokenExpiry * 24 * 60 * 60, // Convert days to seconds
-        // );
+        const cacheKey = `token:refresh:${hashedToken}`;
+        await this.cacheService.set(
+            cacheKey,
+            JSON.stringify({ userId, deviceId, tokenFamily, valid: true }),
+            this.refreshTokenExpiry * 24 * 60 * 60, // Convert days to seconds
+        );
     }
 
     private hashToken(token: string) {
