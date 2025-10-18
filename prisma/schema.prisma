@@ -14,7 +14,7 @@ model User {
   password         String
   gender           Int?
   phone            String?
-  role             String             @default("USER") // USER, ADMIN, SUPERADMIN
+  role             String             @default("USER")
   authId           String?
   trialExpiresAt   DateTime?
   isVerified       Boolean            @default(false)
@@ -35,41 +35,37 @@ model User {
 }
 
 model UserDevice {
-  id           Int      @id @default(autoincrement())
+  id           Int         @id @default(autoincrement())
   userId       Int
-  deviceName   String // User agent info
-  userAgent    String // User agent info
-  deviceType   String // Mobile, Desktop, etc.
+  deviceName   String
+  userAgent    String
+  deviceType   String
   ipAddress    String
-  location     String? // Geo info based on IP
-  refreshToken String // Hashed token
-  lastActive   DateTime @default(now())
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  // Relationships
-  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokens UserToken[]
+  location     String?
+  refreshToken String
+  lastActive   DateTime    @default(now())
+  isActive     Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokens       UserToken[]
 
   @@index([userId])
   @@map("user_devices")
 }
 
 model UserToken {
-  id                 Int      @id @default(autoincrement())
+  id                 Int        @id @default(autoincrement())
   userId             Int
   deviceId           Int
-  refreshToken       String // Hashed token
-  refreshTokenFamily String // For rotation tracking
+  refreshToken       String
+  refreshTokenFamily String
   expiresAt          DateTime
-  invalidated        Boolean  @default(false)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-
-  // Relationships
-  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  device UserDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  invalidated        Boolean    @default(false)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  device             UserDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  user               User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, deviceId])
   @@index([refreshTokenFamily])
@@ -83,9 +79,7 @@ model UserVerification {
   expiresAt DateTime
   isUsed    Boolean  @default(false)
   createdAt DateTime @default(now())
-
-  // Relationships
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_verifications")
 }
