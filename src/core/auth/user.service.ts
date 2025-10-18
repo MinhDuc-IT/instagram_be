@@ -1,5 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from 'src/core/prisma/prisma.service';
+import { CacheService } from "../cache/cache.service";
+import { CacheKeyBuilder } from "src/core/cache/cache.config";
 
 @Injectable()
 export class UserService {
@@ -28,10 +30,10 @@ export class UserService {
         });
     }
 
-    // async findById(userId: string) {
+    // async findById(userId: number) {
     //     // Try to get from cache first
     //     const cacheKey = CacheKeyBuilder.userProfile(userId);
-    //     const cachedUser = await this.cacheService.get(cacheKey);
+    //     // const cachedUser = await this.cacheService.get(cacheKey);
 
     //     if (cachedUser) {
     //         return JSON.parse(cachedUser);

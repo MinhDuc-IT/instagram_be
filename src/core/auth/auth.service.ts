@@ -8,6 +8,8 @@ import {
 } from '@nestjs/common';
 import { ClientMetadata, RegisterUserDto } from './dto/register.dto';
 import { LoginResponseDto, LoginUserDto } from './dto/login.dto';
+import { CacheKeyBuilder, CacheConfig } from 'src/core/cache/cache.config';
+import { CacheService } from 'src/core/cache/cache.service';
 import { UserService } from './user.service';
 import { TokenService } from "./token.service";
 import { DeviceTrackingService } from './device-tracking.service';
@@ -23,6 +25,7 @@ export class AuthService {
         private readonly userService: UserService,
         private readonly tokenService: TokenService,
         private readonly deviceTrackingService: DeviceTrackingService,
+        // private readonly cacheService: CacheService,
     ) { }
 
     async register(registerDto: RegisterUserDto, clientMetadata: ClientMetadata) {
@@ -96,6 +99,15 @@ export class AuthService {
             expiresAt,
         };
     }
+
+    // private async cacheUser(user: any): Promise<void> {
+    //     const userCacheKey = CacheKeyBuilder.userProfile(user.id);
+    //     await this.cacheService.set(
+    //         userCacheKey,
+    //         JSON.stringify(user),
+    //         CacheConfig.ttl.MEDIUM,
+    //     );
+    // }
 
     async login(
         loginDto: LoginUserDto,
@@ -184,7 +196,7 @@ export class AuthService {
         // const cachedUserId = await this.cacheService.get(cacheKey);
 
         // if (cachedUserId) {
-        //     return this.userService.findById(cachedUserId);
+        //     return this.userService.findById(Number(cachedUserId));
         // }
 
         // Query database if not in cache
@@ -195,7 +207,7 @@ export class AuthService {
 
         // Cache the result for future lookups
         // if (user) {
-        //     await this.cacheService.set(cacheKey, user.id, CacheConfig.ttl.MEDIUM);
+        //     await this.cacheService.set(cacheKey, String(user.id), CacheConfig.ttl.MEDIUM);
         // }
 
         return user;
@@ -218,8 +230,7 @@ export class AuthService {
         //     rateLimitKey,
         //     5, // Max 5 attempts
         //     300, // Within 5 minutes
-        // );
-        // !result.allowed
+        // );!result.allowed
         if (true) {
             this.logger.warn(`Rate limit exceeded for IP: ${ipAddress}`);
             throw new UnauthorizedException(
