@@ -19,6 +19,7 @@ export class UserService {
     async create(userData: {
         email: string;
         userName: string;
+        fullName: string;
         password: string;
         authId: string;
         trialExpiresAt: Date;

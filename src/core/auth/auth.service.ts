@@ -13,6 +13,7 @@ import { CacheService } from 'src/core/cache/cache.service';
 import { EmailService } from 'src/core/email/email.service';
 import { UserService } from './user.service';
 import { TokenService } from "./token.service";
+import { PrismaService } from '../prisma/prisma.service';
 import { DeviceTrackingService } from './device-tracking.service';
 import * as bcrypt from 'bcrypt';
 import * as geoip from 'geoip-lite';
@@ -28,6 +29,7 @@ export class AuthService {
         private readonly deviceTrackingService: DeviceTrackingService,
         private readonly cacheService: CacheService,
         private readonly emailService: EmailService,
+        private readonly prisma: PrismaService,
     ) { }
 
     async register(registerDto: RegisterUserDto, clientMetadata: ClientMetadata) {
@@ -56,6 +58,7 @@ export class AuthService {
         const user = await this.userService.create({
             email: registerDto.email,
             userName: registerDto.username,
+            fullName: registerDto.fullname,
             password: hashedPassword,
             authId,
             trialExpiresAt,
@@ -95,6 +98,7 @@ export class AuthService {
         return {
             id: user.id,
             username: user.userName,
+            fullname: user.fullName,
             email: user.email,
             accessToken,
             refreshToken,
@@ -144,7 +148,7 @@ export class AuthService {
 
             // Check if user trial has expired
             if (
-                !user.isVerified &&
+                !user.isVerified ||
                 user.trialExpiresAt &&
                 new Date(user.trialExpiresAt) < new Date()
             ) {
@@ -189,6 +193,61 @@ export class AuthService {
                 throw error;
             }
             throw new UnauthorizedException('Authentication failed');
+        }
+    }
+
+    async verifyAccount(token: string) {
+        try {
+            // Find verification record with valid token and expiration
+            const verification = await this.prisma.userVerification.findFirst({
+                where: {
+                    token,
+                    isUsed: false,
+                    expiresAt: { gt: new Date() },
+                },
+                include: {
+                    user: {
+                        select: {
+                            id: true,
+                            email: true,
+                            isVerified: true,
+                        },
+                    },
+                },
+            });
+
+            if (!verification) {
+                throw new NotFoundException('Invalid or expired verification token');
+            }
+
+            if (verification.user.isVerified) {
+                return { verified: true, message: 'Account is already verified' };
+            }
+
+            // Perform verification in a transaction
+            await this.prisma.$transaction([
+                // Mark token as used
+                this.prisma.userVerification.update({
+                    where: { id: verification.id },
+                    data: { isUsed: true },
+                }),
+
+                // Update user verification status
+                this.prisma.user.update({
+                    where: { id: verification.userId },
+                    data: {
+                        isVerified: true,
+                        trialExpiresAt: undefined, // Remove grace period limitation
+                    },
+                }),
+            ]);
+
+            // Cache invalidation and email confirmation logic...
+
+            return { verified: true, message: 'Account successfully verified' };
+        } catch {
+            // Error handling...
+            throw new NotFoundException('Invalid or expired verification token');
         }
     }
 

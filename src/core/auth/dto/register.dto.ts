@@ -4,14 +4,29 @@ import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
 const RegisterUserSchema = z.object({
-  username: z.string().min(3).max(20),
-  email: z.string().email(),
+  username: z
+    .string( 'Username is required' )
+    .min(3, { message: 'Username must be at least 3 characters long' })
+    .max(20, { message: 'Username must not exceed 20 characters' }),
+
+  email: z
+    .string( 'Email is required' )
+    .email({ message: 'Please enter a valid email address' }),
+
+  fullname: z
+    .string( 'Full name is required' )
+    .min(3, { message: 'Full name must be at least 3 characters' })
+    .max(100, { message: 'Full name must not exceed 100 characters' }),
+
   password: z
-    .string()
-    .min(8)
+    .string( 'Password is required' )
+    .min(8, { message: 'Password must be at least 8 characters long' })
     .regex(
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
-      'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character',
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/,
+      {
+        message:
+          'Password must include at least one uppercase letter, one lowercase letter, one number, and one special character',
+      }
     ),
 });
 
@@ -40,13 +55,22 @@ export class RegisterUserDto extends createZodDto(RegisterUserSchema) {
   email: string;
 
   @ApiProperty({
-    description: 'The password of the user',
-    example: 'Password123!',
+    description: 'The fullname of the user',
+    example: 'John Doe',
     required: true,
-    minLength: 8,
+    minLength: 3,
     format: 'password',
   })
   password: string;
+
+  @ApiProperty({
+    description: 'The password of the user',
+    example: 'john doe',
+    required: true,
+    minLength: 3,
+    maxLength: 20,
+  })
+  fullname: string;
 }
 
 export class RegisterResponseDto {
