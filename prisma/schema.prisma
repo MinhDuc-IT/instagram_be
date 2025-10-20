@@ -8,26 +8,27 @@ datasource db {
 }
 
 model User {
-  id               Int                @id @default(autoincrement())
-  userName         String
-  email            String             @unique
-  password         String
-  gender           Int?
-  phone            String?
-  role             String             @default("USER")
-  authId           String?
-  trialExpiresAt   DateTime?
-  isVerified       Boolean            @default(false)
-  lastLogin        DateTime?
+  id       Int     @id @default(autoincrement())
+  userName String
+  email    String  @unique
+  password String
+  fullName String?
+  gender         Int?
+  phone          String?
+  role           String    @default("USER")
+  authId         String?
+  trialExpiresAt DateTime?
+  isVerified     Boolean   @default(false)
+  lastLogin      DateTime?
 
   /// 🔍 Audit fields
-  createdAt       DateTime          @default(now())
-  createdBy       String?
-  modifiedAt      DateTime?
-  modifiedBy      String?
-  deleted         Boolean           @default(false)
-  deletedAt       DateTime?
-  deletedBy       String?
+  createdAt  DateTime  @default(now())
+  createdBy  String?
+  modifiedAt DateTime?
+  modifiedBy String?
+  deleted    Boolean   @default(false)
+  deletedAt  DateTime?
+  deletedBy  String?
 
   UserDevice       UserDevice[]
   UserToken        UserToken[]
@@ -82,4 +83,66 @@ model UserVerification {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_verifications")
+}
+
+model BackgroundJob {
+  id         String  @id @default(cuid())
+  type       String  @db.VarChar(50) // 'image' | 'video'
+  fileName   String  @db.VarChar(255)
+  status     String  @db.VarChar(50) // 'pending' | 'processing' | 'completed' | 'failed'
+  result     Json? // Stored as JSON
+  error      String? @db.Text
+  progress   Int     @default(0)
+  retryCount Int     @default(0)
+  maxRetries Int     @default(3)
+  publicId   String? @db.VarChar(255)
+  url        String? @db.Text
+  secureUrl  String? @db.Text
+  fileSize   Int?
+  format     String? @db.VarChar(50)
+
+  // Audit fields
+  createdDate  DateTime  @default(now())
+  createdBy    String?   @db.VarChar(255)
+  modifiedDate DateTime  @updatedAt
+  modifiedBy   String?   @db.VarChar(255)
+  deleted      Boolean   @default(false)
+  deletedDate  DateTime?
+  deletedBy    String?   @db.VarChar(255)
+  completedAt  DateTime?
+
+  @@index([status])
+  @@index([createdDate])
+  @@index([type])
+  @@index([deleted])
+}
+
+model UploadedAsset {
+  id        String @id @default(cuid())
+  publicId  String @unique @db.VarChar(255)
+  type      String @db.VarChar(50) // 'image' | 'video'
+  fileName  String @db.VarChar(255)
+  url       String @db.Text
+  secureUrl String @db.Text
+  format    String @db.VarChar(50)
+  width     Int?
+  height    Int?
+  duration  Float?
+  fileSize  Int
+  folder    String @db.VarChar(255)
+  tags      String @db.Text // JSON array stored as text
+
+  // Audit fields
+  createdDate  DateTime  @default(now())
+  createdBy    String?   @db.VarChar(255)
+  modifiedDate DateTime  @updatedAt
+  modifiedBy   String?   @db.VarChar(255)
+  deleted      Boolean   @default(false)
+  deletedDate  DateTime?
+  deletedBy    String?   @db.VarChar(255)
+
+  @@index([publicId])
+  @@index([createdDate])
+  @@index([type])
+  @@index([deleted])
 }
