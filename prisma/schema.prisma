@@ -8,18 +8,18 @@ datasource db {
 }
 
 model User {
-  id       Int     @id @default(autoincrement())
-  userName String
-  email    String  @unique
-  password String
-  fullName String?
-  gender         Int?
-  phone          String?
-  role           String    @default("USER")
-  authId         String?
-  trialExpiresAt DateTime?
-  isVerified     Boolean   @default(false)
-  lastLogin      DateTime?
+  id               Int                @id @default(autoincrement())
+  userName         String
+  email            String             @unique
+  password         String
+  fullName         String?
+  gender           Int?
+  phone            String?
+  role             String             @default("USER")
+  authId           String?
+  trialExpiresAt   DateTime?
+  isVerified       Boolean            @default(false)
+  lastLogin        DateTime?
 
   /// 🔍 Audit fields
   createdAt  DateTime  @default(now())

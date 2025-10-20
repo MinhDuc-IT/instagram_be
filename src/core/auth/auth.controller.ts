@@ -15,14 +15,19 @@ import {
     ApiResponse,
     ApiTags,
 } from '@nestjs/swagger';
-// import { TransformResponseInterceptor } from 'src/core/interceptors/response.interceptor';
+import { TransformResponseInterceptor } from 'src/core/interceptors/response.interceptor';
 import { LoginResponseDto, LoginUserDto } from './dto/login.dto';
 import { TransformResponseDto } from 'src/core/decorators/response.decorator';
 import { RegisterUserDto, RegisterResponseDto } from './dto/register.dto';
 import { AuthService } from "./auth.service";
+import {
+    VerifyAccountDto,
+    VerifyAccountResponseDto,
+} from './dto/verify-account.dto';
 
 @ApiTags('Authentication')
 @Controller('auth')
+@UseInterceptors(TransformResponseInterceptor)
 export class AuthController {
     constructor(private readonly authService: AuthService) { }
 
@@ -60,6 +65,23 @@ export class AuthController {
         };
 
         return this.authService.register(dto, clientMetadata);
+    }
+
+    @Post('verify')
+    @HttpCode(200)
+    @ApiOperation({ summary: 'Verify user account using token' })
+    @ApiResponse({
+        status: 200,
+        description: 'Account verification successful',
+        type: VerifyAccountResponseDto,
+    })
+    @ApiResponse({
+        status: 400,
+        description: 'Invalid or expired verification token',
+    })
+    @TransformResponseDto(VerifyAccountResponseDto)
+    async verifyAccount(@Body() verifyDto: VerifyAccountDto) {
+        return this.authService.verifyAccount(verifyDto.token);
     }
 
     // IP extraction with proxy awareness
