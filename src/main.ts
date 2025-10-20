@@ -22,6 +22,7 @@ async function bootstrap() {
     .setDescription('Api system for instagram')
     .setLicense('MIT', 'https://opensource.org/licenses/MIT')
     .setVersion('1.0')
+    .addBearerAuth()
     .addCookieAuth(
       'sb-csso-auth-token',
       {
