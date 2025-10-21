@@ -3,6 +3,8 @@ import {
     Controller,
     HttpCode,
     Patch,
+    Get,
+    Request,
     Post,
     Req,
     UseGuards,
@@ -12,6 +14,7 @@ import { ZodValidationPipe } from 'nestjs-zod';
 import {
     ApiCookieAuth,
     ApiOperation,
+    ApiBearerAuth,
     ApiResponse,
     ApiTags,
 } from '@nestjs/swagger';
@@ -20,6 +23,7 @@ import { LoginResponseDto, LoginUserDto } from './dto/login.dto';
 import { TransformResponseDto } from 'src/core/decorators/response.decorator';
 import { RegisterUserDto, RegisterResponseDto } from './dto/register.dto';
 import { AuthService } from "./auth.service";
+import { Public } from '../decorators/response.decorator';
 import {
     VerifyAccountDto,
     VerifyAccountResponseDto,
@@ -33,6 +37,7 @@ export class AuthController {
 
     @Post('login')
     @HttpCode(200)
+    @Public()
     @ApiOperation({ summary: 'Authenticate user and generate tokens' })
     @TransformResponseDto(LoginResponseDto)
     async login(
@@ -51,6 +56,7 @@ export class AuthController {
 
     @Post('register')
     @HttpCode(201)
+    @Public()
     @ApiOperation({ summary: 'Register a new user account' })
     @TransformResponseDto(RegisterResponseDto)
     async register(
