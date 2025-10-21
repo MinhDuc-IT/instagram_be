@@ -7,10 +7,11 @@ import { AuthModule } from './core/auth/auth.module';
 import { CacheModule } from './core/cache/cache.module';
 import { EmailModule } from './core/email/email.module';
 import { ConfigModule as _ConfigModule } from './config/config.module';
+import { ChatGateway } from './chat/chat.gateway';
 
 @Module({
   imports: [UsersModule, AuthModule, _ConfigModule, CacheModule, EmailModule],
   controllers: [AppController],
-  providers: [AppService, PrismaService],
+  providers: [AppService, PrismaService, ChatGateway],
 })
 export class AppModule { }
