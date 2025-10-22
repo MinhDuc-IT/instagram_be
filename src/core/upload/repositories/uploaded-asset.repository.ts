@@ -32,8 +32,8 @@ export class UploadedAssetRepository {
 
     async findAll(skip = 0, take = 10) {
         return this.prisma.uploadedAsset.findMany({
-            where: { deletedAt: null },
-            orderBy: { createdAt: 'desc' },
+            where: { deletedDate: null },
+            orderBy: { createdDate: 'desc' },
             skip,
             take,
         });
@@ -43,9 +43,9 @@ export class UploadedAssetRepository {
         return this.prisma.uploadedAsset.findMany({
             where: {
                 type,
-                deletedAt: null,
+                deletedDate: null,
             },
-            orderBy: { createdAt: 'desc' },
+            orderBy: { createdDate: 'desc' },
             skip,
             take,
         });
@@ -55,9 +55,9 @@ export class UploadedAssetRepository {
         return this.prisma.uploadedAsset.findMany({
             where: {
                 folder,
-                deletedAt: null,
+                deletedDate: null,
             },
-            orderBy: { createdAt: 'desc' },
+            orderBy: { createdDate: 'desc' },
             skip,
             take,
         });
@@ -66,7 +66,7 @@ export class UploadedAssetRepository {
     async softDelete(publicId: string) {
         return this.prisma.uploadedAsset.update({
             where: { publicId },
-            data: { deletedAt: new Date() },
+            data: { deletedDate: new Date() },
         });
     }
 
@@ -80,7 +80,7 @@ export class UploadedAssetRepository {
         return this.prisma.uploadedAsset.count({
             where: {
                 type,
-                deletedAt: null,
+                deletedDate: null,
             },
         });
     }

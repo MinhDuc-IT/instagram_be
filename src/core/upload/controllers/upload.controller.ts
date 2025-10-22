@@ -9,246 +9,358 @@ import {
     BadRequestException,
     HttpCode,
     HttpStatus,
-    UseGuards,
     Logger,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
+import { InjectQueue } from '@nestjs/bull';
+import type { Queue } from 'bull';
+import {
+    ApiTags,
+    ApiOperation,
+    ApiConsumes,
+    ApiBody,
+    ApiResponse,
+} from '@nestjs/swagger';
 import { CloudinaryService } from '../services/cloudinary.service';
-import { BackgroundJobService } from '../services/background-job.service';
-import { FileUploadGuard } from '../guards/file-upload.guard';
-import { FileSizePipe } from '../pipes/file-size.pipe';
+import { BackgroundJobRepository } from '../repositories/background-job.repository';
+import { UploadAssetService } from '../services/upload-asset.service';
+import { FileValidationPipe } from '../pipes/file-validation.pipe';
+import { UploadLoggingInterceptor } from '../interceptors/upload-logging.interceptor';
 import { UploadResponseDto } from '../dto/upload-response.dto';
-import { UPLOAD_CONSTANTS } from '../constants/upload.constants';
+import { BackgroundJobDto, JobStatusResponseDto } from '../dto/background-job.dto';
+import { UPLOAD_CONSTANTS, JOB_TYPES } from '../constants/upload.constants';
 
+@ApiTags('Upload')
 @Controller('api/upload')
+@UseInterceptors(UploadLoggingInterceptor)
 export class UploadController {
     private readonly logger = new Logger(UploadController.name);
 
     constructor(
         private readonly cloudinaryService: CloudinaryService,
-        private readonly backgroundJobService: BackgroundJobService,
+        private readonly backgroundJobRepository: BackgroundJobRepository,
+        private readonly uploadAssetService: UploadAssetService,
+        @InjectQueue(UPLOAD_CONSTANTS.QUEUE_NAME) private uploadQueue: Queue,
     ) { }
 
-    /**
-     * POST /api/upload/image
-     * Upload image directly
-     */
     @Post('image')
-    @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
     @HttpCode(HttpStatus.CREATED)
+    @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
+    @ApiConsumes('multipart/form-data')
+    @ApiBody({
+        description: 'Upload image file',
+        schema: {
+            type: 'object',
+            properties: {
+                file: {
+                    type: 'string',
+                    format: 'binary',
+                },
+            },
+        },
+    })
+    @ApiOperation({ summary: 'Upload an image synchronously' })
+    @ApiResponse({
+        status: HttpStatus.CREATED,
+        description: 'Image uploaded successfully',
+        type: UploadResponseDto,
+    })
+    @ApiResponse({
+        status: HttpStatus.BAD_REQUEST,
+        description: 'Invalid file type or size',
+    })
     async uploadImage(
         @UploadedFile(
-            new FileSizePipe(UPLOAD_CONSTANTS.MAX_IMAGE_SIZE),
+            new FileValidationPipe({
+                maxSize: UPLOAD_CONSTANTS.MAX_IMAGE_SIZE,
+                allowedTypes: UPLOAD_CONSTANTS.ALLOWED_IMAGE_TYPES,
+                fileType: 'image',
+            }),
         )
         file: Express.Multer.File,
     ): Promise<UploadResponseDto> {
-        if (!file) {
-            throw new BadRequestException('File is required');
-        }
-
-        if (!UPLOAD_CONSTANTS.ALLOWED_IMAGE_TYPES.includes(file.mimetype)) {
-            throw new BadRequestException('Invalid image type');
-        }
-
         this.logger.log(`Uploading image: ${file.originalname}`);
-        return this.cloudinaryService.uploadImage(
+
+        const result = await this.cloudinaryService.uploadImage(
             file.buffer,
             file.originalname,
         );
+
+        // Save to database
+        await this.uploadAssetService.saveAsset(
+            result,
+            'image',
+            file.originalname,
+            UPLOAD_CONSTANTS.IMAGE_FOLDER,
+        );
+
+        return result;
     }
 
-    /**
-     * POST /api/upload/video
-     * Upload video directly
-     */
     @Post('video')
-    @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
     @HttpCode(HttpStatus.CREATED)
+    @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
+    @ApiConsumes('multipart/form-data')
+    @ApiBody({
+        description: 'Upload video file',
+        schema: {
+            type: 'object',
+            properties: {
+                file: {
+                    type: 'string',
+                    format: 'binary',
+                },
+            },
+        },
+    })
+    @ApiOperation({ summary: 'Upload a video synchronously' })
+    @ApiResponse({
+        status: HttpStatus.CREATED,
+        description: 'Video uploaded successfully',
+        type: UploadResponseDto,
+    })
     async uploadVideo(
         @UploadedFile(
-            new FileSizePipe(UPLOAD_CONSTANTS.MAX_VIDEO_SIZE),
+            new FileValidationPipe({
+                maxSize: UPLOAD_CONSTANTS.MAX_VIDEO_SIZE,
+                allowedTypes: UPLOAD_CONSTANTS.ALLOWED_VIDEO_TYPES,
+                fileType: 'video',
+            }),
         )
         file: Express.Multer.File,
     ): Promise<UploadResponseDto> {
-        if (!file) {
-            throw new BadRequestException('File is required');
-        }
-
-        if (!UPLOAD_CONSTANTS.ALLOWED_VIDEO_TYPES.includes(file.mimetype)) {
-            throw new BadRequestException('Invalid video type');
-        }
-
         this.logger.log(`Uploading video: ${file.originalname}`);
-        return this.cloudinaryService.uploadVideo(
+
+        const result = await this.cloudinaryService.uploadVideo(
             file.buffer,
             file.originalname,
         );
+
+        // Save to database
+        await this.uploadAssetService.saveAsset(
+            result,
+            'video',
+            file.originalname,
+            UPLOAD_CONSTANTS.VIDEO_FOLDER,
+        );
+
+        return result;
     }
 
-    /**
-     * POST /api/upload/image/background
-     * Upload image in background
-     */
     @Post('image/background')
-    @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
     @HttpCode(HttpStatus.ACCEPTED)
+    @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
+    @ApiConsumes('multipart/form-data')
+    @ApiBody({
+        description: 'Upload image file in background',
+        schema: {
+            type: 'object',
+            properties: {
+                file: {
+                    type: 'string',
+                    format: 'binary',
+                },
+            },
+        },
+    })
+    @ApiOperation({ summary: 'Upload an image in background (async)' })
+    @ApiResponse({
+        status: HttpStatus.ACCEPTED,
+        description: 'Image upload scheduled',
+        type: JobStatusResponseDto,
+    })
     async uploadImageBackground(
         @UploadedFile(
-            new FileSizePipe(UPLOAD_CONSTANTS.MAX_IMAGE_SIZE),
+            new FileValidationPipe({
+                maxSize: UPLOAD_CONSTANTS.MAX_IMAGE_SIZE,
+                allowedTypes: UPLOAD_CONSTANTS.ALLOWED_IMAGE_TYPES,
+                fileType: 'image',
+            }),
         )
         file: Express.Multer.File,
-    ): Promise<{ jobId: string; message: string }> {
-        if (!file) {
-            throw new BadRequestException('File is required');
-        }
+    ): Promise<JobStatusResponseDto> {
+        // Create job record
+        const job = await this.backgroundJobRepository.create({
+            type: 'image',
+            fileName: file.originalname,
+            status: 'pending',
+            progress: 0,
+            retryCount: 0,
+            maxRetries: 3,
+            createdDate: new Date(),
+        });
 
-        if (!UPLOAD_CONSTANTS.ALLOWED_IMAGE_TYPES.includes(file.mimetype)) {
-            throw new BadRequestException('Invalid image type');
-        }
-
-        const job = await this.backgroundJobService.createJob('image', file.originalname);
+        // Add to queue (fire and forget)
+        await this.uploadQueue.add(
+            JOB_TYPES.UPLOAD_IMAGE,
+            {
+                jobId: job.id,
+                fileBase64: file.buffer.toString('base64'),
+                fileName: file.originalname,
+                type: 'image',
+            },
+            {
+                attempts: 3,
+                backoff: {
+                    type: 'exponential',
+                    delay: 2000,
+                },
+            },
+        );
 
         this.logger.log(`Background image upload scheduled: ${job.id}`);
-
-        await this.processImageUploadAsync(job.id, file.buffer, file.originalname);
-
 
         return {
             jobId: job.id,
             message: 'Image upload scheduled in background',
+            status: 'pending',
         };
     }
 
-    /**
-     * POST /api/upload/video/background
-     * Upload video in background
-     */
     @Post('video/background')
-    @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
     @HttpCode(HttpStatus.ACCEPTED)
+    @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
+    @ApiConsumes('multipart/form-data')
+    @ApiBody({
+        description: 'Upload video file in background',
+        schema: {
+            type: 'object',
+            properties: {
+                file: {
+                    type: 'string',
+                    format: 'binary',
+                },
+            },
+        },
+    })
+    @ApiOperation({ summary: 'Upload a video in background (async)' })
+    @ApiResponse({
+        status: HttpStatus.ACCEPTED,
+        description: 'Video upload scheduled',
+        type: JobStatusResponseDto,
+    })
     async uploadVideoBackground(
         @UploadedFile(
-            new FileSizePipe(UPLOAD_CONSTANTS.MAX_VIDEO_SIZE),
+            new FileValidationPipe({
+                maxSize: UPLOAD_CONSTANTS.MAX_VIDEO_SIZE,
+                allowedTypes: UPLOAD_CONSTANTS.ALLOWED_VIDEO_TYPES,
+                fileType: 'video',
+            }),
         )
         file: Express.Multer.File,
-    ): Promise<{ jobId: string; message: string }> {
-        if (!file) {
-            throw new BadRequestException('File is required');
-        }
+    ): Promise<JobStatusResponseDto> {
+        // Create job record
+        const job = await this.backgroundJobRepository.create({
+            type: 'video',
+            fileName: file.originalname,
+            status: 'pending',
+            progress: 0,
+            retryCount: 0,
+            maxRetries: 3,
+            createdDate: new Date(),
+        });
 
-        if (!UPLOAD_CONSTANTS.ALLOWED_VIDEO_TYPES.includes(file.mimetype)) {
-            throw new BadRequestException('Invalid video type');
-        }
-
-        const job = await this.backgroundJobService.createJob('video', file.originalname);
+        // Add to queue (fire and forget)
+        await this.uploadQueue.add(
+            JOB_TYPES.UPLOAD_VIDEO,
+            {
+                jobId: job.id,
+                fileBase64: file.buffer.toString('base64'),
+                fileName: file.originalname,
+                type: 'video',
+            },
+            {
+                attempts: 3,
+                backoff: {
+                    type: 'exponential',
+                    delay: 2000,
+                },
+            },
+        );
 
         this.logger.log(`Background video upload scheduled: ${job.id}`);
-
-        // Process in background
-        await this.processVideoUploadAsync(job.id, file.buffer, file.originalname);
 
         return {
             jobId: job.id,
             message: 'Video upload scheduled in background',
+            status: 'pending',
         };
     }
 
-    /**
-     * GET /api/upload/job/:jobId
-     * Get job status
-     */
     @Get('job/:jobId')
-    getJobStatus(@Param('jobId') jobId: string) {
-        const job = this.backgroundJobService.getJob(jobId);
+    @ApiOperation({ summary: 'Get job status by ID' })
+    @ApiResponse({
+        status: HttpStatus.OK,
+        description: 'Job status retrieved',
+        type: BackgroundJobDto,
+    })
+    @ApiResponse({
+        status: HttpStatus.NOT_FOUND,
+        description: 'Job not found',
+    })
+    async getJobStatus(@Param('jobId') jobId: string): Promise<BackgroundJobDto> {
+        const job = await this.backgroundJobRepository.findById(jobId);
+
         if (!job) {
             throw new BadRequestException('Job not found');
         }
+
         return job;
     }
 
-    /**
-     * GET /api/upload/jobs
-     * Get all jobs
-     */
     @Get('jobs')
-    getAllJobs() {
-        return this.backgroundJobService.getAllJobs();
+    @ApiOperation({ summary: 'Get all jobs' })
+    @ApiResponse({
+        status: HttpStatus.OK,
+        description: 'Jobs retrieved',
+        type: [BackgroundJobDto],
+    })
+    async getAllJobs(): Promise<BackgroundJobDto[]> {
+        return this.backgroundJobRepository.findAll();
     }
 
-    /**
-     * GET /api/upload/jobs/status/:status
-     * Get jobs by status
-     */
     @Get('jobs/status/:status')
-    getJobsByStatus(
+    @ApiOperation({ summary: 'Get jobs by status' })
+    @ApiResponse({
+        status: HttpStatus.OK,
+        description: 'Jobs retrieved',
+        type: [BackgroundJobDto],
+    })
+    async getJobsByStatus(
         @Param('status') status: 'pending' | 'processing' | 'completed' | 'failed',
-    ) {
-        return this.backgroundJobService.getJobsByStatus(status);
+    ): Promise<BackgroundJobDto[]> {
+        return this.backgroundJobRepository.findByStatus(status);
     }
 
-    /**
-     * DELETE /api/upload/:publicId
-     * Delete asset
-     */
-    @Delete(':publicId')
-    async deleteAsset(@Param('publicId') publicId: string) {
-        const success = await this.cloudinaryService.deleteAsset(publicId);
-        return { success };
-    }
-
-    /**
-     * DELETE /api/upload/job/:jobId
-     * Delete job
-     */
     @Delete('job/:jobId')
-    deleteJob(@Param('jobId') jobId: string) {
-        const success = this.backgroundJobService.deleteJob(jobId);
+    @ApiOperation({ summary: 'Delete a job' })
+    @ApiResponse({
+        status: HttpStatus.OK,
+        description: 'Job deleted successfully',
+    })
+    async deleteJob(@Param('jobId') jobId: string) {
+        const success = await this.backgroundJobRepository.delete(jobId);
         return { success };
     }
 
-    // Private methods
-    private async processImageUploadAsync(
-        jobId: string,
-        fileBuffer: Buffer,
-        fileName: string,
-    ): Promise<void> {
-        try {
-            this.backgroundJobService.updateJobStatus(jobId, 'processing', 50);
+    @Get('health')
+    @ApiOperation({ summary: 'Health check for upload service' })
+    @ApiResponse({
+        status: HttpStatus.OK,
+        description: 'Service health status',
+    })
+    async healthCheck() {
+        const pendingJobs = await this.backgroundJobRepository.findPending();
+        const stats = await this.uploadAssetService.getStats();
 
-            const result = await this.cloudinaryService.uploadImage(
-                fileBuffer,
-                fileName,
-            );
-
-            this.backgroundJobService.updateJobResult(jobId, result);
-            this.logger.log(`Background job ${jobId} completed`);
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            this.backgroundJobService.updateJobError(jobId, errorMessage, true);
-            this.logger.error(`Background job ${jobId} failed:`, error);
-        }
-    }
-
-    private async processVideoUploadAsync(
-        jobId: string,
-        fileBuffer: Buffer,
-        fileName: string,
-    ): Promise<void> {
-        try {
-            this.backgroundJobService.updateJobStatus(jobId, 'processing', 50);
-
-            const result = await this.cloudinaryService.uploadVideo(
-                fileBuffer,
-                fileName,
-            );
-
-            this.backgroundJobService.updateJobResult(jobId, result);
-            this.logger.log(`Background job ${jobId} completed`);
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            this.backgroundJobService.updateJobError(jobId, errorMessage, true);
-            this.logger.error(`Background job ${jobId} failed:`, error);
-        }
+        return {
+            status: 'ok',
+            timestamp: new Date(),
+            queue: {
+                pending: pendingJobs.length,
+            },
+            storage: stats,
+        };
     }
 }

@@ -1,13 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BackgroundJobDto } from '../dto/background-job.dto';
+import { BackgroundJobMapper } from '../mapper/background-job.mapper';
 
 @Injectable()
 export class BackgroundJobRepository {
     constructor(private prisma: PrismaService) { }
 
     async create(data: Omit<BackgroundJobDto, 'id'>): Promise<BackgroundJobDto> {
-        return this.prisma.backgroundJob.create({
+        const job = await this.prisma.backgroundJob.create({
             data: {
                 type: data.type,
                 fileName: data.fileName,
@@ -16,41 +17,39 @@ export class BackgroundJobRepository {
                 retryCount: data.retryCount || 0,
                 maxRetries: data.maxRetries || 3,
             },
-        }) as Promise<BackgroundJobDto>;
+        });
+
+        return BackgroundJobMapper.toDto(job)!;
     }
 
     async findById(id: string): Promise<BackgroundJobDto | null> {
-        return this.prisma.backgroundJob.findUnique({
-            where: { id },
-        }) as Promise<BackgroundJobDto | null>;
+        const job = await this.prisma.backgroundJob.findUnique({ where: { id } });
+        return BackgroundJobMapper.toDto(job);
     }
 
     async findAll(): Promise<BackgroundJobDto[]> {
-        return this.prisma.backgroundJob.findMany({
-            orderBy: { createdAt: 'desc' },
-        }) as Promise<BackgroundJobDto[]>;
+        const jobs = await this.prisma.backgroundJob.findMany({
+            orderBy: { createdDate: 'desc' },
+            take: 100,
+        });
+        return BackgroundJobMapper.toDtos(jobs);
     }
 
     async findByStatus(status: string): Promise<BackgroundJobDto[]> {
-        return this.prisma.backgroundJob.findMany({
+        const jobs = await this.prisma.backgroundJob.findMany({
             where: { status },
-            orderBy: { createdAt: 'desc' },
-        }) as Promise<BackgroundJobDto[]>;
+            orderBy: { createdDate: 'desc' },
+        });
+        return BackgroundJobMapper.toDtos(jobs);
     }
 
     async findPending(): Promise<BackgroundJobDto[]> {
-        return this.prisma.backgroundJob.findMany({
+        const jobs = await this.prisma.backgroundJob.findMany({
             where: { status: 'pending' },
-            orderBy: { createdAt: 'asc' },
+            orderBy: { createdDate: 'asc' },
             take: 10,
-        }) as Promise<BackgroundJobDto[]>;
-    }
-
-    async update(id: string, data: Partial<BackgroundJobDto>): Promise<BackgroundJobDto> {
-        return this.prisma.backgroundJob.update({
-            where: { id },
-            data,
-        }) as Promise<BackgroundJobDto>;
+        });
+        return BackgroundJobMapper.toDtos(jobs);
     }
 
     async updateStatus(
@@ -66,14 +65,16 @@ export class BackgroundJobRepository {
             updateData.completedAt = new Date();
         }
 
-        return this.prisma.backgroundJob.update({
+        const job = await this.prisma.backgroundJob.update({
             where: { id },
             data: updateData,
-        }) as Promise<BackgroundJobDto>;
+        });
+
+        return BackgroundJobMapper.toDto(job)!;
     }
 
     async updateResult(id: string, result: any): Promise<BackgroundJobDto> {
-        return this.prisma.backgroundJob.update({
+        const job = await this.prisma.backgroundJob.update({
             where: { id },
             data: {
                 result,
@@ -86,13 +87,15 @@ export class BackgroundJobRepository {
                 fileSize: result?.fileSize,
                 format: result?.format,
             },
-        }) as Promise<BackgroundJobDto>;
+        });
+
+        return BackgroundJobMapper.toDto(job)!;
     }
 
     async updateError(
         id: string,
         error: string,
-        retry: boolean = false,
+        retry = false,
     ): Promise<BackgroundJobDto> {
         const job = await this.findById(id);
         if (!job) throw new Error('Job not found');
@@ -107,10 +110,12 @@ export class BackgroundJobRepository {
             updateData.completedAt = new Date();
         }
 
-        return this.prisma.backgroundJob.update({
+        const updated = await this.prisma.backgroundJob.update({
             where: { id },
             data: updateData,
-        }) as Promise<BackgroundJobDto>;
+        });
+
+        return BackgroundJobMapper.toDto(updated)!;
     }
 
     async delete(id: string): Promise<boolean> {
@@ -122,7 +127,8 @@ export class BackgroundJobRepository {
         const cutoffDate = new Date(Date.now() - hoursOld * 3600 * 1000);
         const result = await this.prisma.backgroundJob.deleteMany({
             where: {
-                createdAt: { lt: cutoffDate },
+                createdDate: { lt: cutoffDate },
+                status: { in: ['completed', 'failed'] },
             },
         });
         return result.count;

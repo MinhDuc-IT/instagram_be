@@ -22,7 +22,7 @@ export class BackgroundJobService {
             progress: 0,
             retryCount: 0,
             maxRetries: 3,
-            createdAt: new Date(),
+            createdDate: new Date(),
         });
 
         this.logger.log(`Job created: ${job.id}`);

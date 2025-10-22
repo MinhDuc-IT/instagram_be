@@ -1,12 +1,13 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { TransformOptionsDto } from '../dto/transform-options.dto';
 
 @Injectable()
 export class TransformService {
     private cloudName: string;
 
-    constructor() {
-        this.cloudName = process.env.CLOUDINARY_CLOUD_NAME || '';
+    constructor(private configService: ConfigService) {
+        this.cloudName = this.configService.get<string>('CLOUDINARY_CLOUD_NAME', '');
     }
 
     buildTransformString(options: TransformOptionsDto): string {
@@ -18,37 +19,14 @@ export class TransformService {
             transforms.push(`c_${options.crop || 'fill'}`);
         }
 
-        if (options.quality) {
-            transforms.push(`q_${options.quality}`);
-        }
-
-        if (options.fetchFormat) {
-            transforms.push(`f_${options.fetchFormat}`);
-        }
-
-        if (options.dpr) {
-            transforms.push(`dpr_${options.dpr}`);
-        }
-
-        if (options.gravity) {
-            transforms.push(`g_${options.gravity}`);
-        }
-
-        if (options.radius !== undefined) {
-            transforms.push(`r_${options.radius}`);
-        }
-
-        if (options.background) {
-            transforms.push(`b_${options.background}`);
-        }
-
-        if (options.angle) {
-            transforms.push(`a_${options.angle}`);
-        }
-
-        if (options.opacity) {
-            transforms.push(`o_${options.opacity}`);
-        }
+        if (options.quality) transforms.push(`q_${options.quality}`);
+        if (options.fetchFormat) transforms.push(`f_${options.fetchFormat}`);
+        if (options.dpr) transforms.push(`dpr_${options.dpr}`);
+        if (options.gravity) transforms.push(`g_${options.gravity}`);
+        if (options.radius !== undefined) transforms.push(`r_${options.radius}`);
+        if (options.background) transforms.push(`b_${options.background}`);
+        if (options.angle) transforms.push(`a_${options.angle}`);
+        if (options.opacity) transforms.push(`o_${options.opacity}`);
 
         return transforms.join(',');
     }
@@ -56,7 +34,9 @@ export class TransformService {
     getTransformationUrl(publicId: string, options?: TransformOptionsDto): string {
         const baseUrl = `https://res.cloudinary.com/${this.cloudName}/image/upload`;
         const transforms = options ? this.buildTransformString(options) : '';
-        return `${baseUrl}/${transforms}/v1/${publicId}`.replace(/\/\//g, '/').replace(':/', '://');
+        return `${baseUrl}/${transforms}/v1/${publicId}`
+            .replace(/\/\//g, '/')
+            .replace(':/', '://');
     }
 
     getResponsiveUrls(publicId: string, baseOptions?: TransformOptionsDto) {
@@ -109,16 +89,6 @@ export class TransformService {
             gravity: 'face',
             radius: 'max',
             background: 'auto',
-            quality: 'auto',
-            fetchFormat: 'auto',
-        });
-    }
-
-    getVideoThumbnail(publicId: string, width: number = 400): string {
-        return this.getTransformationUrl(publicId, {
-            width,
-            height: 300,
-            crop: 'fill',
             quality: 'auto',
             fetchFormat: 'auto',
         });

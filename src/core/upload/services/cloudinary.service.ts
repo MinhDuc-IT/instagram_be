@@ -1,8 +1,8 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
 import { UploadResponseDto } from '../dto/upload-response.dto';
-import { TransformOptionsDto } from '../dto/transform-options.dto';
 import { TransformService } from './transform.service';
 import { UPLOAD_CONSTANTS } from '../constants/upload.constants';
+import { UploadException } from '../exceptions/upload.exception';
 
 @Injectable()
 export class CloudinaryService {
@@ -13,118 +13,48 @@ export class CloudinaryService {
         private transformService: TransformService,
     ) { }
 
-    /**
-     * Upload image async
-     */
     async uploadImage(
         fileBuffer: Buffer,
         fileName: string,
         folder: string = UPLOAD_CONSTANTS.IMAGE_FOLDER,
     ): Promise<UploadResponseDto> {
-        return new Promise((resolve, reject) => {
-            const uploadStream = this.cloudinary.uploader.upload_stream(
-                {
-                    folder,
-                    resource_type: 'auto',
-                    public_id: this.generatePublicId(fileName),
-                    eager: [
-                        {
-                            width: 1200,
-                            height: 630,
-                            crop: 'fill',
-                            quality: 'auto',
-                            fetch_format: 'auto',
-                        },
-                        {
-                            width: 800,
-                            height: 600,
-                            crop: 'fill',
-                            quality: 'auto',
-                            fetch_format: 'auto',
-                        },
-                    ],
-                    eager_async: true,
-                    tags: ['upload', 'image', `original-${fileName}`],
-                },
-                (error, result) => {
-                    if (error) {
-                        this.logger.error(`Upload image error: ${fileName}`, error);
-                        reject({
-                            success: false,
-                            error: error.message,
-                            timestamp: new Date(),
-                        } as UploadResponseDto);
-                    } else {
-                        resolve(this.mapUploadResponse(result));
-                    }
-                },
+        try {
+            return await this.uploadToCloudinary(
+                fileBuffer,
+                fileName,
+                folder,
+                'image',
             );
-
-            uploadStream.end(fileBuffer);
-        });
+        } catch (error) {
+            this.logger.error(`Upload image error: ${fileName}`, error);
+            throw new UploadException(`Failed to upload image: ${error.message}`);
+        }
     }
 
-    /**
-     * Upload video async
-     */
     async uploadVideo(
         fileBuffer: Buffer,
         fileName: string,
         folder: string = UPLOAD_CONSTANTS.VIDEO_FOLDER,
     ): Promise<UploadResponseDto> {
-        return new Promise((resolve, reject) => {
-            const uploadStream = this.cloudinary.uploader.upload_stream(
-                {
-                    folder,
-                    resource_type: 'video',
-                    public_id: this.generatePublicId(fileName),
-                    eager: [
-                        {
-                            video_codec: 'h264',
-                            audio_codec: 'aac',
-                            bit_rate: '1m',
-                            height: 720,
-                            width: 1280,
-                            crop: 'fill',
-                            quality: 'auto',
-                        },
-                        {
-                            video_codec: 'h264',
-                            audio_codec: 'aac',
-                            bit_rate: '500k',
-                            height: 480,
-                            width: 854,
-                            crop: 'fill',
-                            quality: 'auto',
-                        },
-                    ],
-                    eager_async: true,
-                    tags: ['upload', 'video', `original-${fileName}`],
-                },
-                (error, result) => {
-                    if (error) {
-                        this.logger.error(`Upload video error: ${fileName}`, error);
-                        reject({
-                            success: false,
-                            error: error.message,
-                            timestamp: new Date(),
-                        } as UploadResponseDto);
-                    } else {
-                        resolve(this.mapUploadResponse(result));
-                    }
-                },
+        try {
+            return await this.uploadToCloudinary(
+                fileBuffer,
+                fileName,
+                folder,
+                'video',
             );
-
-            uploadStream.end(fileBuffer);
-        });
+        } catch (error) {
+            this.logger.error(`Upload video error: ${fileName}`, error);
+            throw new UploadException(`Failed to upload video: ${error.message}`);
+        }
     }
 
-    /**
-     * Delete asset
-     */
-    async deleteAsset(publicId: string): Promise<boolean> {
+    async deleteAsset(publicId: string, resourceType: 'image' | 'video' = 'image'): Promise<boolean> {
         try {
-            const result = await this.cloudinary.uploader.destroy(publicId);
+            const result = await this.cloudinary.uploader.destroy(publicId, {
+                resource_type: resourceType,
+            });
+
             this.logger.log(`Asset deleted: ${publicId}`);
             return result.result === 'ok';
         } catch (error) {
@@ -133,24 +63,61 @@ export class CloudinaryService {
         }
     }
 
-    /**
-     * Get transformation URL
-     */
-    getTransformationUrl(
-        publicId: string,
-        options?: TransformOptionsDto,
-    ): string {
-        return this.transformService.getTransformationUrl(publicId, options);
+    private async uploadToCloudinary(
+        fileBuffer: Buffer,
+        fileName: string,
+        folder: string,
+        type: 'image' | 'video',
+    ): Promise<UploadResponseDto> {
+        return new Promise((resolve, reject) => {
+            const options: any = {
+                folder,
+                public_id: this.generatePublicId(fileName),
+                resource_type: type === 'video' ? 'video' : 'auto',
+                tags: ['upload', type, `original-${fileName}`],
+            };
+
+            if (type === 'image') {
+                options.eager = [
+                    {
+                        width: 1200,
+                        height: 630,
+                        crop: 'fill',
+                        quality: 'auto',
+                        fetch_format: 'auto',
+                    },
+                ];
+                options.eager_async = true;
+            } else {
+                options.eager = [
+                    {
+                        video_codec: 'h264',
+                        audio_codec: 'aac',
+                        bit_rate: '1m',
+                        height: 720,
+                        width: 1280,
+                        crop: 'fill',
+                        quality: 'auto',
+                    },
+                ];
+                options.eager_async = true;
+            }
+
+            const uploadStream = this.cloudinary.uploader.upload_stream(
+                options,
+                (error: any, result: any) => {
+                    if (error) {
+                        reject(error);
+                    } else {
+                        resolve(this.mapUploadResponse(result));
+                    }
+                },
+            );
+
+            uploadStream.end(fileBuffer);
+        });
     }
 
-    /**
-     * Get responsive URLs
-     */
-    getResponsiveUrls(publicId: string, baseOptions?: TransformOptionsDto) {
-        return this.transformService.getResponsiveUrls(publicId, baseOptions);
-    }
-
-    // Private methods
     private mapUploadResponse(result: any): UploadResponseDto {
         return {
             success: true,
@@ -168,7 +135,10 @@ export class CloudinaryService {
 
     private generatePublicId(fileName: string): string {
         const timestamp = Date.now();
-        const name = fileName.replace(/[^a-zA-Z0-9-_]/g, '-').split('.')[0];
+        const name = fileName
+            .replace(/[^a-zA-Z0-9-_]/g, '-')
+            .split('.')[0]
+            .toLowerCase();
         return `${name}_${timestamp}`;
     }
 }
