@@ -23,6 +23,22 @@ export class UploadProcessor {
         private uploadAssetService: UploadAssetService,
     ) { }
 
+    @Process('cleanupOldJobs')
+    async handleCleanupOldJobs(job: Job) {
+        this.logger.log('Processing cleanupOldJobs...');
+        const count = await this.backgroundJobRepository.deleteOldJobs(
+            UPLOAD_CONSTANTS.MAX_JOB_RETENTION_HOURS,
+        );
+
+        if (count > 0) {
+            this.logger.log(`Cleaned up ${count} old jobs`);
+        } else {
+            this.logger.log('No old jobs to clean up.');
+        }
+
+        return { cleaned: count };
+    }
+
     @Process(JOB_TYPES.UPLOAD_IMAGE)
     async handleImageUpload(job: Job<UploadJobData>) {
         const { jobId, fileBase64, fileName } = job.data;
