@@ -21,7 +21,7 @@ import { PostModule } from './packages/post/post.module';
     ConfigModule,
     CacheModule,
     EmailModule,
-    UsersModule,
+    UserModule,
     AuthModule,
     UploadModule,
     PostModule,
