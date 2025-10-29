@@ -10,6 +10,7 @@ interface UploadJobData {
     jobId: string;
     fileBase64: string;
     fileName: string;
+    postId: string | null;
     type: 'image' | 'video';
 }
 
@@ -41,7 +42,7 @@ export class UploadProcessor {
 
     @Process(JOB_TYPES.UPLOAD_IMAGE)
     async handleImageUpload(job: Job<UploadJobData>) {
-        const { jobId, fileBase64, fileName } = job.data;
+        const { jobId, fileBase64, fileName, postId} = job.data;
 
         try {
             this.logger.log(`Processing image upload job: ${jobId}`);
@@ -61,6 +62,7 @@ export class UploadProcessor {
                 'image',
                 fileName,
                 UPLOAD_CONSTANTS.IMAGE_FOLDER,
+                postId,
             );
 
             await job.progress(100);
@@ -78,7 +80,7 @@ export class UploadProcessor {
 
     @Process(JOB_TYPES.UPLOAD_VIDEO)
     async handleVideoUpload(job: Job<UploadJobData>) {
-        const { jobId, fileBase64, fileName } = job.data;
+        const { jobId, fileBase64, fileName, postId } = job.data;
 
         try {
             this.logger.log(`Processing video upload job: ${jobId}`);
@@ -98,6 +100,7 @@ export class UploadProcessor {
                 'video',
                 fileName,
                 UPLOAD_CONSTANTS.VIDEO_FOLDER,
+                postId,
             );
 
             await job.progress(100);
