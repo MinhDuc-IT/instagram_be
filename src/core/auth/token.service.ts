@@ -24,7 +24,7 @@ export class TokenService {
         this.accessTokenSecret = this.configService.get<string>('JWT_SECRET') ?? '';
         this.accessTokenExpiry = Number(this.configService.get<string>(
             'JWT_EXPIRY_IN',
-            '15',
+            '3600',
         ));
         this.refreshTokenExpiry = this.configService.get<number>(
             'REFRESH_TOKEN_EXPIRY_DAYS',
@@ -94,5 +94,41 @@ export class TokenService {
 
     private hashToken(token: string) {
         return crypto.createHash('sha256').update(token).digest('hex');
+    }
+
+    async revokeDeviceTokens(userId: number, deviceId: number): Promise<void> {
+        try {
+            // 1. Invalidate all access tokens for this device via pattern matching
+            await this.cacheService.invalidatePattern(
+                `token:${userId}:${deviceId}:*`,
+            );
+
+            // 2. Find the refresh token for this device
+            const device = await this.prisma.userDevice.findUnique({
+                where: { id: deviceId },
+                select: { refreshToken: true },
+            });
+
+            if (device?.refreshToken) {
+                // 3. Invalidate the specific refresh token
+                await this.cacheService.delete(`refresh:${device.refreshToken}`);
+            }
+
+            // 4. Maintain a blacklist of revoked deviceIds for additional security
+            // This helps prevent token reuse after logout
+            await this.cacheService.set(
+                `revoked:${deviceId}`,
+                Date.now().toString(),
+                86400 * 7, // Keep in blacklist for 7 days
+            );
+
+            this.logger.debug(`Revoked tokens for device ${deviceId}`);
+        } catch (error) {
+            this.logger.error(
+                `Token revocation failed: ${error.message}`,
+                error.stack,
+            );
+            throw error;
+        }
     }
 }

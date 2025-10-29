@@ -14,6 +14,15 @@ export class CacheService {
     private readonly localCache: LocalCacheService,
   ) { }
 
+  async onModuleInit() {
+    try {
+      const pong = await this.redis.ping();
+      this.logger.log(`✅ Redis connected: ${pong}`);
+    } catch (error) {
+      this.logger.error(`❌ Redis connection failed: ${error.message}`);
+    }
+  }
+
   /**
    * Lấy giá trị từ cache, kiểm tra cache local trước, sau đó Redis
    */
@@ -32,7 +41,8 @@ export class CacheService {
       if (value !== null) {
         this.localCache.set(key, value);
       }
-
+      console.log(`Cache set for key: ${key} in local cache`);
+      console.log(`Returning value for key: ${key}: ${value}`);
       return value;
     } catch (error) {
       this.logger.error(
