@@ -8,7 +8,7 @@ import {
 interface FileValidationOptions {
     maxSize: number;
     allowedTypes: string[];
-    fileType: 'image' | 'video';
+    fileType: 'image' | 'video' | 'mixed';
 }
 
 @Injectable()

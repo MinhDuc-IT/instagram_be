@@ -14,6 +14,7 @@ export class UploadAssetService {
         type: 'image' | 'video',
         fileName: string,
         folder: string,
+        postId: string | null,
     ) {
         try {
             const asset = await this.prisma.uploadedAsset.create({
@@ -30,6 +31,7 @@ export class UploadAssetService {
                     fileSize: result.fileSize,
                     folder,
                     tags: JSON.stringify(['upload', type]),
+                    postId: postId,
                 },
             });
 

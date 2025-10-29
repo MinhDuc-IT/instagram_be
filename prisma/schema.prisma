@@ -8,18 +8,18 @@ datasource db {
 }
 
 model User {
-  id               Int                @id @default(autoincrement())
-  userName         String
-  email            String             @unique
-  password         String
-  fullName         String?
-  gender           Int?
-  phone            String?
-  role             String             @default("USER")
-  authId           String?
-  trialExpiresAt   DateTime?
-  isVerified       Boolean            @default(false)
-  lastLogin        DateTime?
+  id             Int       @id @default(autoincrement())
+  userName       String
+  email          String    @unique
+  password       String
+  fullName       String?
+  gender         Int?
+  phone          String?
+  role           String    @default("USER")
+  authId         String?
+  trialExpiresAt DateTime?
+  isVerified     Boolean   @default(false)
+  lastLogin      DateTime?
 
   /// 🔍 Audit fields
   createdAt  DateTime  @default(now())
@@ -33,6 +33,7 @@ model User {
   UserDevice       UserDevice[]
   UserToken        UserToken[]
   UserVerification UserVerification[]
+  Posts            Post[]
 }
 
 model UserDevice {
@@ -132,6 +133,9 @@ model UploadedAsset {
   folder    String @db.VarChar(255)
   tags      String @db.Text // JSON array stored as text
 
+  postId String?
+  post   Post?   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
   // Audit fields
   createdDate  DateTime  @default(now())
   createdBy    String?   @db.VarChar(255)
@@ -144,5 +148,31 @@ model UploadedAsset {
   @@index([publicId])
   @@index([createdDate])
   @@index([type])
+  @@index([deleted])
+}
+
+model Post {
+  id                 String  @id @default(cuid())
+  userId             Int
+  caption            String?
+  location           String?
+  visibility         String  @default("public") // 'public' | 'private' | 'friends'
+  isLikesHidden      Boolean @default(false)
+  isCommentsDisabled Boolean @default(false)
+
+  user  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  media UploadedAsset[]
+
+  // Audit fields
+  createdDate  DateTime  @default(now())
+  createdBy    String?   @db.VarChar(255)
+  modifiedDate DateTime  @updatedAt
+  modifiedBy   String?   @db.VarChar(255)
+  deleted      Boolean   @default(false)
+  deletedDate  DateTime?
+  deletedBy    String?   @db.VarChar(255)
+
+  @@index([userId])
+  @@index([createdDate])
   @@index([deleted])
 }
