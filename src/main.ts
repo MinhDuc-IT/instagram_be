@@ -38,7 +38,7 @@ async function bootstrap() {
         in: 'cookie',
         name: 'sb-csso-auth-token',
       },
-      'cookie-auth', // Tên của security scheme
+      'cookie-auth',
     )
     .build();
 

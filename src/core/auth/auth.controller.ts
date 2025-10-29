@@ -73,8 +73,19 @@ export class AuthController {
         return this.authService.register(dto, clientMetadata);
     }
 
+    @Post('logout')
+    @HttpCode(204)
+    @ApiOperation({ summary: 'Logout current device' })
+    @ApiResponse({ status: 204, description: 'Successfully logged out' })
+    async logout(@Req() request: any) {
+        const { userId, deviceId } = request.user;
+        await this.authService.logout(userId, deviceId);
+        return;
+    }
+
     @Post('verify')
     @HttpCode(200)
+    @Public()
     @ApiOperation({ summary: 'Verify user account using token' })
     @ApiResponse({
         status: 200,

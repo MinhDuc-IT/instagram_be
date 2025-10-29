@@ -11,7 +11,8 @@ import { LoginResponseDto, LoginUserDto } from './dto/login.dto';
 import { CacheKeyBuilder, CacheConfig } from 'src/core/cache/cache.config';
 import { CacheService } from 'src/core/cache/cache.service';
 import { EmailService } from 'src/core/email/email.service';
-import { UserService } from './user.service';
+// import { UserService } from './user.service';
+import { UserService } from 'src/packages/user/user.service';
 import { TokenService } from "./token.service";
 import { PrismaService } from '../prisma/prisma.service';
 import { DeviceTrackingService } from './device-tracking.service';
@@ -251,6 +252,42 @@ export class AuthService {
         }
     }
 
+    async logout(userId: number, deviceId: number): Promise<void> {
+        try {
+            // Execute these operations in parallel for performance
+            const operations = [
+                // 1. Invalidate the device's tokens
+                this.tokenService.revokeDeviceTokens(userId, deviceId),
+
+                // 2. Mark the device as inactive
+                this.deviceTrackingService.deactivateDevice(deviceId),
+
+                // 3. Remove related cache entries
+                this.clearLogoutRelatedCache(userId, deviceId),
+            ];
+
+            await Promise.all(operations);
+
+            this.logger.log(`User ${userId} logged out from device ${deviceId}`);
+        } catch (error) {
+            this.logger.error(`Logout failed: ${error.message}`, error.stack);
+            // Even if there's an error, we consider the logout successful from the user's perspective
+            // This prevents leaked tokens from remaining valid
+        }
+    }
+
+    private async clearLogoutRelatedCache(
+        userId: number, 
+        deviceId: number,
+    ): Promise<void> {
+        // Clear device-specific cache
+        await this.cacheService.delete(`device:${deviceId}`);
+
+        // We don't clear all user cache to avoid performance impact on other devices
+        // Just invalidate the specific device session information
+        await this.cacheService.delete(`session:${userId}:${deviceId}`);
+    }
+
     private async findUserByCredential(credential: string): Promise<any> {
         // Try cache first for performance
         const cacheKey = `auth:credential:${credential}`;
@@ -267,9 +304,9 @@ export class AuthService {
         );
 
         // Cache the result for future lookups
-        // if (user) {
-        //     await this.cacheService.set(cacheKey, String(user.id), CacheConfig.ttl.MEDIUM);
-        // }
+        if (user) {
+            await this.cacheService.set(cacheKey, String(user.id), CacheConfig.ttl.MEDIUM);
+        }
 
         return user;
     }
