@@ -7,6 +7,7 @@ import { AuthModule } from './core/auth/auth.module';
 import { CacheModule } from './core/cache/cache.module';
 import { EmailModule } from './core/email/email.module';
 import { ConfigModule as _ConfigModule } from './config/config.module';
+import { UploadModule } from './core/upload/upload.module';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 // import { JwtAuthGuard } from './core/guards/jwt-auth.guard';
@@ -19,8 +20,9 @@ import { JwtAuthGuard } from './core/auth/guards/jwt-auth.guard';
     ConfigModule,
     CacheModule,
     EmailModule,
-    UserModule,
-    AuthModule
+    UsersModule, 
+    AuthModule,
+    UploadModule
   ],
   controllers: [AppController],
   providers: [
