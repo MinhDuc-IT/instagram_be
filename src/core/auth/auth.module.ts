@@ -10,6 +10,7 @@ import { DeviceTrackingService } from "./device-tracking.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { EmailService } from "../email/email.service";
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { FacebookStrategy } from "./strategies/facebook.strategy";
 import { UserModule } from "src/packages/user/user.module";
 
 @Module({
@@ -31,6 +32,7 @@ import { UserModule } from "src/packages/user/user.module";
     providers: [
         AuthService,
         JwtStrategy,
+        FacebookStrategy,
         TokenService,
         DeviceTrackingService,
         PrismaService,

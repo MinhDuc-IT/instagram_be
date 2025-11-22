@@ -20,7 +20,7 @@ import { JwtAuthGuard } from './core/auth/guards/jwt-auth.guard';
     ConfigModule,
     CacheModule,
     EmailModule,
-    UsersModule, 
+    UserModule, 
     AuthModule,
     UploadModule
   ],
@@ -28,10 +28,10 @@ import { JwtAuthGuard } from './core/auth/guards/jwt-auth.guard';
   providers: [
     AppService,
     PrismaService,
-    {
-      provide: APP_GUARD,
-      useClass: JwtAuthGuard,
-    },
+    // {
+    //   provide: APP_GUARD,
+    //   useClass: JwtAuthGuard,
+    // },
   ],
 })
 export class AppModule { }
