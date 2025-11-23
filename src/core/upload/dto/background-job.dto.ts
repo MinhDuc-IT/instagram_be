@@ -5,8 +5,8 @@ export class BackgroundJobDto {
     @ApiProperty()
     id: string;
 
-    @ApiProperty({ enum: ['image', 'video'] })
-    type: 'image' | 'video';
+    @ApiProperty({ enum: ['image', 'video', 'mixed'] })
+    type: 'image' | 'video' | 'mixed';
 
     @ApiProperty()
     fileName: string;

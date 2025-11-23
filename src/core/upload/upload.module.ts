@@ -12,6 +12,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { cloudinaryProvider } from '../../config/cloudinary.config';
 import { getBullConfig } from '../../config/bull.config';
 import { UPLOAD_CONSTANTS } from './constants/upload.constants';
+import { CleanupService } from './services/cleanup-job.service';
 
 @Module({
     imports: [
@@ -34,6 +35,7 @@ import { UPLOAD_CONSTANTS } from './constants/upload.constants';
         UploadProcessor,
         BackgroundJobRepository,
         PrismaService,
+        CleanupService
     ],
     exports: [
         CloudinaryService,

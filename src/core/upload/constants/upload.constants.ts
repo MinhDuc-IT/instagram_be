@@ -1,6 +1,6 @@
 export const UPLOAD_CONSTANTS = {
     MAX_IMAGE_SIZE: 10 * 1024 * 1024, // 10MB
-    MAX_VIDEO_SIZE: 500 * 1024 * 1024, // 500MB
+    MAX_VIDEO_SIZE: 50 * 1024 * 1024, // 50MB
 
     ALLOWED_IMAGE_TYPES: [
         'image/jpeg',
@@ -31,4 +31,6 @@ export const UPLOAD_CONSTANTS = {
 export const JOB_TYPES = {
     UPLOAD_IMAGE: 'upload-image',
     UPLOAD_VIDEO: 'upload-video',
+    UPLOAD_IMAGE_POST: 'upload-image-post',
+    UPLOAD_VIDEO_POST: 'upload-video-post',
 } as const;
