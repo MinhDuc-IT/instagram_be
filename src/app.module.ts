@@ -21,7 +21,7 @@ import { PostModule } from './packages/post/post.module';
     ConfigModule,
     CacheModule,
     EmailModule,
-    UserModule,
+    UserModule, 
     AuthModule,
     UploadModule,
     PostModule,
@@ -30,10 +30,10 @@ import { PostModule } from './packages/post/post.module';
   providers: [
     AppService,
     PrismaService,
-    {
-      provide: APP_GUARD,
-      useClass: JwtAuthGuard,
-    },
+    // {
+    //   provide: APP_GUARD,
+    //   useClass: JwtAuthGuard,
+    // },
   ],
 })
 export class AppModule { }
