@@ -8,31 +8,45 @@ datasource db {
 }
 
 model User {
-  id               Int                @id @default(autoincrement())
-  userName         String
-  email            String             @unique
-  password         String
-  fullName         String?
-  gender           Int?
-  phone            String?
-  role             String             @default("USER")
-  authId           String?
-  trialExpiresAt   DateTime?
-  isVerified       Boolean            @default(false)
-  lastLogin        DateTime?
-
+  id                                         Int                  @id @default(autoincrement())
+  userName                                   String
+  email                                      String               @unique
+  password                                   String
+  gender                                     Int?
+  phone                                      String?
+  role                                       String               @default("USER")
+  loginType                                  String               @default("LOCAL")
+  loginToken                                 String?              @unique
+  authId                                     String?
+  trialExpiresAt                             DateTime?
+  isVerified                                 Boolean              @default(false)
+  lastLogin                                  DateTime?
   /// 🔍 Audit fields
-  createdAt  DateTime  @default(now())
-  createdBy  String?
-  modifiedAt DateTime?
-  modifiedBy String?
-  deleted    Boolean   @default(false)
-  deletedAt  DateTime?
-  deletedBy  String?
-
-  UserDevice       UserDevice[]
-  UserToken        UserToken[]
-  UserVerification UserVerification[]
+  createdAt                                  DateTime             @default(now())
+  createdBy                                  String?
+  modifiedAt                                 DateTime?
+  modifiedBy                                 String?
+  deleted                                    Boolean              @default(false)
+  deletedAt                                  DateTime?
+  deletedBy                                  String?
+  fullName                                   String?
+  Comment                                    Comment[]
+  CommentLike                                CommentLike[]
+  ConversationMember                         ConversationMember[]
+  Follow_Follow_followerIdToUser             Follow[]             @relation("Follow_followerIdToUser")
+  Follow_Follow_followingIdToUser            Follow[]             @relation("Follow_followingIdToUser")
+  Message                                    Message[]
+  MessageRead                                MessageRead[]
+  Notification_Notification_receiverIdToUser Notification[]       @relation("Notification_receiverIdToUser")
+  Notification_Notification_senderIdToUser   Notification[]       @relation("Notification_senderIdToUser")
+  Post                                       Post[]
+  PostLike                                   PostLike[]
+  Story                                      Story[]
+  StoryLike                                  StoryLike[]
+  StoryView                                  StoryView[]
+  UserDevice                                 UserDevice[]
+  UserToken                                  UserToken[]
+  UserVerification                           UserVerification[]
 }
 
 model UserDevice {
@@ -86,22 +100,20 @@ model UserVerification {
 }
 
 model BackgroundJob {
-  id         String  @id @default(cuid())
-  type       String  @db.VarChar(50) // 'image' | 'video'
-  fileName   String  @db.VarChar(255)
-  status     String  @db.VarChar(50) // 'pending' | 'processing' | 'completed' | 'failed'
-  result     Json? // Stored as JSON
-  error      String? @db.Text
-  progress   Int     @default(0)
-  retryCount Int     @default(0)
-  maxRetries Int     @default(3)
-  publicId   String? @db.VarChar(255)
-  url        String? @db.Text
-  secureUrl  String? @db.Text
-  fileSize   Int?
-  format     String? @db.VarChar(50)
-
-  // Audit fields
+  id           String    @id @default(cuid())
+  type         String    @db.VarChar(50)
+  fileName     String    @db.VarChar(255)
+  status       String    @db.VarChar(50)
+  result       Json?
+  error        String?
+  progress     Int       @default(0)
+  retryCount   Int       @default(0)
+  maxRetries   Int       @default(3)
+  publicId     String?   @db.VarChar(255)
+  url          String?
+  secureUrl    String?
+  fileSize     Int?
+  format       String?   @db.VarChar(50)
   createdDate  DateTime  @default(now())
   createdBy    String?   @db.VarChar(255)
   modifiedDate DateTime  @updatedAt
@@ -118,21 +130,19 @@ model BackgroundJob {
 }
 
 model UploadedAsset {
-  id        String @id @default(cuid())
-  publicId  String @unique @db.VarChar(255)
-  type      String @db.VarChar(50) // 'image' | 'video'
-  fileName  String @db.VarChar(255)
-  url       String @db.Text
-  secureUrl String @db.Text
-  format    String @db.VarChar(50)
-  width     Int?
-  height    Int?
-  duration  Float?
-  fileSize  Int
-  folder    String @db.VarChar(255)
-  tags      String @db.Text // JSON array stored as text
-
-  // Audit fields
+  id           String    @id @default(cuid())
+  publicId     String    @unique @db.VarChar(255)
+  type         String    @db.VarChar(50)
+  fileName     String    @db.VarChar(255)
+  url          String
+  secureUrl    String
+  format       String    @db.VarChar(50)
+  width        Int?
+  height       Int?
+  duration     Float?
+  fileSize     Int
+  folder       String    @db.VarChar(255)
+  tags         String
   createdDate  DateTime  @default(now())
   createdBy    String?   @db.VarChar(255)
   modifiedDate DateTime  @updatedAt
@@ -140,9 +150,204 @@ model UploadedAsset {
   deleted      Boolean   @default(false)
   deletedDate  DateTime?
   deletedBy    String?   @db.VarChar(255)
+  postId       String?
+  Post         Post?     @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@index([publicId])
   @@index([createdDate])
   @@index([type])
   @@index([deleted])
+}
+
+model Comment {
+  id            Int           @id @default(autoincrement())
+  userId        Int
+  postId        String
+  content       String
+  parentId      Int?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime
+  Comment       Comment?      @relation("CommentToComment", fields: [parentId], references: [id])
+  other_Comment Comment[]     @relation("CommentToComment")
+  Post          Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  User          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  CommentLike   CommentLike[]
+
+  @@index([parentId])
+  @@index([postId])
+  @@index([userId])
+}
+
+model CommentLike {
+  id        Int      @id @default(autoincrement())
+  actorId   Int
+  commentId Int
+  createdAt DateTime @default(now())
+  User      User     @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  Comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([actorId, commentId])
+  @@index([commentId])
+}
+
+model Conversation {
+  id                 Int                  @id @default(autoincrement())
+  type               String               @default("private")
+  name               String?
+  avatar             String?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime
+  ConversationMember ConversationMember[]
+  Message            Message[]
+}
+
+model ConversationMember {
+  id             Int          @id @default(autoincrement())
+  conversationId Int
+  userId         Int
+  joinedAt       DateTime     @default(now())
+  leftedAt       DateTime?
+  role           String?
+  Conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  User           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([conversationId])
+  @@index([userId])
+}
+
+model Follow {
+  id                            Int      @id @default(autoincrement())
+  followerId                    Int
+  followingId                   Int
+  createdAt                     DateTime @default(now())
+  User_Follow_followerIdToUser  User     @relation("Follow_followerIdToUser", fields: [followerId], references: [id], onDelete: Cascade)
+  User_Follow_followingIdToUser User     @relation("Follow_followingIdToUser", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+
+model Message {
+  id             Int           @id @default(autoincrement())
+  conversationId Int
+  senderId       Int
+  content        String?
+  messageType    String        @default("text")
+  mediaUrl       String?
+  replyToId      Int?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime
+  Conversation   Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  Message        Message?      @relation("MessageToMessage", fields: [replyToId], references: [id])
+  other_Message  Message[]     @relation("MessageToMessage")
+  User           User          @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  MessageRead    MessageRead[]
+
+  @@index([conversationId])
+  @@index([replyToId])
+  @@index([senderId])
+}
+
+model MessageRead {
+  id        Int      @id @default(autoincrement())
+  messageId Int
+  actorId   Int
+  readAt    DateTime @default(now())
+  User      User     @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  Message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, actorId])
+  @@index([actorId])
+}
+
+model Notification {
+  id                                 Int      @id @default(autoincrement())
+  receiverId                         Int
+  senderId                           Int
+  type                               String   @db.VarChar(50)
+  content                            String
+  isRead                             Boolean  @default(false)
+  createdAt                          DateTime @default(now())
+  User_Notification_receiverIdToUser User     @relation("Notification_receiverIdToUser", fields: [receiverId], references: [id], onDelete: Cascade)
+  User_Notification_senderIdToUser   User     @relation("Notification_senderIdToUser", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([receiverId])
+  @@index([senderId])
+  @@index([type])
+}
+
+model Post {
+  id                 String          @id
+  userId             Int
+  caption            String?
+  location           String?
+  visibility         String          @default("public")
+  isLikesHidden      Boolean         @default(false)
+  isCommentsDisabled Boolean         @default(false)
+  createdDate        DateTime        @default(now())
+  createdBy          String?         @db.VarChar(255)
+  modifiedDate       DateTime
+  modifiedBy         String?         @db.VarChar(255)
+  deleted            Boolean         @default(false)
+  deletedDate        DateTime?
+  deletedBy          String?         @db.VarChar(255)
+  Comment            Comment[]
+  User               User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  PostLike           PostLike[]
+  UploadedAsset      UploadedAsset[]
+
+  @@index([createdDate])
+  @@index([deleted])
+  @@index([userId])
+}
+
+model PostLike {
+  id        Int      @id @default(autoincrement())
+  actorId   Int
+  postId    String
+  createdAt DateTime @default(now())
+  User      User     @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  Post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([actorId, postId])
+  @@index([postId])
+}
+
+model Story {
+  id        Int         @id @default(autoincrement())
+  userId    Int
+  mediaUrl  String
+  createdAt DateTime    @default(now())
+  expiresAt DateTime
+  User      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  StoryLike StoryLike[]
+  StoryView StoryView[]
+
+  @@index([userId])
+}
+
+model StoryLike {
+  id        Int      @id @default(autoincrement())
+  actorId   Int
+  storyId   Int
+  createdAt DateTime @default(now())
+  User      User     @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  Story     Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@unique([actorId, storyId])
+  @@index([storyId])
+}
+
+model StoryView {
+  id       Int      @id @default(autoincrement())
+  storyId  Int
+  actorId  Int
+  viewedAt DateTime @default(now())
+  User     User     @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  Story    Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@unique([actorId, storyId])
+  @@index([storyId])
 }

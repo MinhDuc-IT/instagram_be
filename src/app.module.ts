@@ -12,6 +12,7 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 // import { JwtAuthGuard } from './core/guards/jwt-auth.guard';
 import { JwtAuthGuard } from './core/auth/guards/jwt-auth.guard';
+import { PostModule } from './packages/post/post.module';
 
 @Module({
   imports: [
@@ -20,18 +21,19 @@ import { JwtAuthGuard } from './core/auth/guards/jwt-auth.guard';
     ConfigModule,
     CacheModule,
     EmailModule,
-    UsersModule, 
+    UserModule, 
     AuthModule,
-    UploadModule
+    UploadModule,
+    PostModule,
   ],
   controllers: [AppController],
   providers: [
     AppService,
     PrismaService,
-    {
-      provide: APP_GUARD,
-      useClass: JwtAuthGuard,
-    },
+    // {
+    //   provide: APP_GUARD,
+    //   useClass: JwtAuthGuard,
+    // },
   ],
 })
 export class AppModule { }

@@ -30,10 +30,12 @@ import { UploadLoggingInterceptor } from '../interceptors/upload-logging.interce
 import { UploadResponseDto } from '../dto/upload-response.dto';
 import { BackgroundJobDto, JobStatusResponseDto } from '../dto/background-job.dto';
 import { UPLOAD_CONSTANTS, JOB_TYPES } from '../constants/upload.constants';
+import { Public } from 'src/core/decorators/response.decorator';
 
 @ApiTags('Upload')
 @Controller('api/upload')
 @UseInterceptors(UploadLoggingInterceptor)
+@Public()
 export class UploadController {
     private readonly logger = new Logger(UploadController.name);
 
@@ -93,6 +95,7 @@ export class UploadController {
             'image',
             file.originalname,
             UPLOAD_CONSTANTS.IMAGE_FOLDER,
+            null
         );
 
         return result;
@@ -143,6 +146,7 @@ export class UploadController {
             'video',
             file.originalname,
             UPLOAD_CONSTANTS.VIDEO_FOLDER,
+            null
         );
 
         return result;
