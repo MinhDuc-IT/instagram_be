@@ -182,11 +182,12 @@ export class AuthService {
 
             return {
                 id: user.id,
-                username: user.username,
+                username: user.userName,
                 email: user.email,
                 accessToken,
                 refreshToken,
                 expiresAt,
+                avatar: user.avatar,
             };
         } catch (error) {
             this.logger.error(`Login failed: ${error.message}`, error.stack);
@@ -277,7 +278,7 @@ export class AuthService {
     }
 
     private async clearLogoutRelatedCache(
-        userId: number, 
+        userId: number,
         deviceId: number,
     ): Promise<void> {
         // Clear device-specific cache
@@ -449,16 +450,16 @@ export class AuthService {
 
             // Send email
             await this.emailService.sendEmail({
-              recipients: [user.email],
-              subject: 'Verify Your Email Address',
-              body: `
+                recipients: [user.email],
+                subject: 'Verify Your Email Address',
+                body: `
                 <h1>Welcome to our platform!</h1>
                 <p>Please verify your email address by clicking the link below:</p>
                 <p><a href="${verificationLink}">Verify Email</a></p>
                 <p>This link will expire in 3 days.</p>
                 <p>If you didn't create this account, please ignore this email.</p>
               `,
-              isHtml: true,
+                isHtml: true,
             });
         } catch (error) {
             this.logger.error(`Failed to send verification email: ${error.message}`);

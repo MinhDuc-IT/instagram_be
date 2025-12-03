@@ -21,15 +21,20 @@ import { MultiFileValidationPipe } from '../../core/upload/pipes/multi-file-vali
 import { UPLOAD_CONSTANTS } from '../../core/upload/constants/upload.constants';
 import { JobStatusResponseDto } from '../../core/upload/dto/background-job.dto';
 import { Public } from 'src/core/decorators/response.decorator';
+import { JwtAuthGuard } from 'src/core/guards/jwt-auth.guard';
+import { UseGuards } from '@nestjs/common';
+import { TransformResponseDto } from 'src/core/decorators/response.decorator';
+import { PostDto } from './dto/get-post.dto';
 
 @ApiTags('Post')
 @Controller('post')
-@Public()
+// @Public()
 export class PostController {
     constructor(private readonly postService: PostService) { }
 
     @Post()
     @HttpCode(HttpStatus.CREATED)
+    @UseGuards(JwtAuthGuard)
     @UseInterceptors(FilesInterceptor('files', 10, { storage: memoryStorage() }))
     @ApiConsumes('multipart/form-data')
     @ApiBody({
@@ -98,6 +103,7 @@ export class PostController {
 
     @Get('user/:userId')
     @ApiOperation({ summary: 'Lấy thông tin bài viết' })
+    @TransformResponseDto(PostDto)
     async getPosts(@Param('userId') userId: number) {
         const posts = await this.postService.getPosts(userId);
         if (!posts) throw new NotFoundException('Posts not found');

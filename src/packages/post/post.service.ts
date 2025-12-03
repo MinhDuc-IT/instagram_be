@@ -3,6 +3,7 @@ import { PrismaService } from '../../core/prisma/prisma.service';
 import { CloudinaryService } from '../../core/upload/services/cloudinary.service';
 import { UploadAssetService } from '../../core/upload/services/upload-asset.service';
 import { CreatePostDto } from './dto/create-post.dto';
+import { PostDto } from './dto/get-post.dto';
 import { InjectQueue } from '@nestjs/bull';
 import type { Queue } from 'bull';
 import { JOB_TYPES, UPLOAD_CONSTANTS } from '../../core/upload/constants/upload.constants';
@@ -122,10 +123,40 @@ export class PostService {
         });
     }
 
-    async getPosts(userId: number) {
-        return this.prisma.post.findMany({
+    async getPosts(userId: number): Promise<PostDto[]> {
+        const posts = await this.prisma.post.findMany({
             where: { userId: Number(userId) },
-            include: { media: true },
+            include: { media: true, user: true },
         });
+
+        // Chỉ lấy các trường cần thiết
+        return posts.map(post => ({
+            id: post.id,
+            userId: post.userId,
+            username: post.user?.userName || '',
+            userAvatar: '',
+            caption: post.caption ?? '',
+            location: post.location ?? '',
+            visibility: post.visibility,
+            media: post.media.map(m => ({
+                id: m.id,
+                publicId: m.publicId,
+                type: m.type,
+                fileName: m.fileName,
+                url: m.url,
+                secureUrl: m.secureUrl,
+                format: m.format,
+                width: m.width ?? null,
+                height: m.height ?? null,
+                duration: m.duration ?? null,
+                fileSize: m.fileSize,
+            })),
+            timestamp: post.createdDate?.toISOString() || new Date().toISOString(),
+            likes: 0,         // nếu cần FE hiển thị số lượt like
+            comments: [],  // nếu cần FE hiển thị comment
+            isLiked: false,                 // FE sẽ set dựa trên user hiện tại
+            isSaved: false,                 // FE sẽ set dựa trên user hiện tại
+        }));
+
     }
 }
