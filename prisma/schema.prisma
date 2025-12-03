@@ -279,7 +279,7 @@ model Notification {
 }
 
 model Post {
-  id                 String          @id
+  id                 String          @id @default(cuid())
   userId             Int
   caption            String?
   location           String?
@@ -288,7 +288,7 @@ model Post {
   isCommentsDisabled Boolean         @default(false)
   createdDate        DateTime        @default(now())
   createdBy          String?         @db.VarChar(255)
-  modifiedDate       DateTime
+  modifiedDate       DateTime        @default(now()) @updatedAt
   modifiedBy         String?         @db.VarChar(255)
   deleted            Boolean         @default(false)
   deletedDate        DateTime?

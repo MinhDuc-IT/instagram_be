@@ -13,7 +13,7 @@ export class PostRepository {
     async findAll(filter?: Prisma.PostWhereInput) {
         return this.prisma.post.findMany({
             where: { deleted: false, ...filter },
-            include: { media: true, user: true },
+            include: { UploadedAsset: true, User: true },
             orderBy: { createdDate: 'desc' },
         });
     }
@@ -21,7 +21,7 @@ export class PostRepository {
     async findById(id: string) {
         return this.prisma.post.findUnique({
             where: { id },
-            include: { media: true, user: true },
+            include: { UploadedAsset: true, User: true },
         });
     }
 

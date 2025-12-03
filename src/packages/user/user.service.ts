@@ -98,7 +98,7 @@ export class UserService {
         const user = await this.prisma.user.findUnique({
             where: { id: userId },
             include: {
-                Posts: {
+                Post: {
                     where: { deleted: false },
                     select: { id: true },
                 },
@@ -123,7 +123,7 @@ export class UserService {
             bio: '', // TODO: Add bio field to User model if needed
             followers: followersCount,
             following: followingCount,
-            posts: user.Posts.length,
+            posts: user.Post.length,
             isFollowing: currentUserId ? isFollowing : false,
             createdAt: user.createdAt.toISOString(),
         };

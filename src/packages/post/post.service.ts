@@ -57,7 +57,7 @@ export class PostService {
 
         return await this.prisma.post.findUnique({
             where: { id: post.id },
-            include: { media: true },
+            include: { UploadedAsset: true },
         });
     }
 
@@ -119,26 +119,26 @@ export class PostService {
     async getPostById(id: string) {
         return this.prisma.post.findUnique({
             where: { id },
-            include: { media: true, user: true },
+            include: { UploadedAsset: true, User: true },
         });
     }
 
     async getPosts(userId: number): Promise<PostDto[]> {
         const posts = await this.prisma.post.findMany({
             where: { userId: Number(userId) },
-            include: { media: true, user: true },
+            include: { UploadedAsset: true, User: true },
         });
 
         // Chỉ lấy các trường cần thiết
         return posts.map(post => ({
             id: post.id,
             userId: post.userId,
-            username: post.user?.userName || '',
+            username: post.User?.userName || '',
             userAvatar: '',
             caption: post.caption ?? '',
             location: post.location ?? '',
             visibility: post.visibility,
-            media: post.media.map(m => ({
+            media: post.UploadedAsset.map(m => ({
                 id: m.id,
                 publicId: m.publicId,
                 type: m.type,
