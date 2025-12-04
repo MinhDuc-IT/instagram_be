@@ -84,4 +84,57 @@ export class UserService {
             },
         });
     }
+
+    async getUserProfile(userId: number, currentUserId?: number) {
+        // Try to get from cache first
+        const cacheKey = CacheKeyBuilder.userProfile(userId);
+        const cachedUser = await this.cacheService.get(cacheKey);
+
+        if (cachedUser) {
+            return JSON.parse(cachedUser);
+        }
+
+        // Get user with posts count
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            include: {
+                Post: {
+                    where: { deleted: false },
+                    select: { id: true },
+                },
+            },
+        });
+
+        if (!user) {
+            return null;
+        }
+
+        // Count followers and following
+        const followersCount = 0; // TODO: Implement followers count when Follower model is added
+        const followingCount = 0; // TODO: Implement following count when Follower model is added
+        const isFollowing = false; // TODO: Implement isFollowing when Follower model is added
+
+        const profileData = {
+            id: user.id,
+            username: user.userName,
+            email: user.email,
+            avatar: '', // TODO: Add avatar field to User model if needed
+            fullName: user.fullName || '',
+            bio: '', // TODO: Add bio field to User model if needed
+            followers: followersCount,
+            following: followingCount,
+            posts: user.Post.length,
+            isFollowing: currentUserId ? isFollowing : false,
+            createdAt: user.createdAt.toISOString(),
+        };
+
+        // Cache the result
+        await this.cacheService.set(
+            cacheKey,
+            JSON.stringify(profileData),
+            3600, // 1 hour
+        );
+
+        return profileData;
+    }
 }

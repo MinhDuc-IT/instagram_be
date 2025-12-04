@@ -45,4 +45,7 @@ export class LoginResponseDto {
 
   @Expose()
   expiresAt: Date;
+
+  @Expose()
+  avatar: string;
 }
