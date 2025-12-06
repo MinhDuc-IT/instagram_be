@@ -56,12 +56,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
       // Return user context for request
       return {
-        id: user.id,
+        userId: user.id,
         email: user.email,
         username: user.userName,
         deviceId,
       };
-      return { id: userId, deviceId };
     } catch (error) {
       this.logger.error(`JWT validation failed: ${error.message}`);
       throw new UnauthorizedException('Invalid token');
