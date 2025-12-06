@@ -8,7 +8,7 @@ export class UserService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly cacheService: CacheService,
-    ) {}
+    ) { }
 
     async getAllUsers() {
         return this.prisma.user.findMany();
@@ -42,9 +42,9 @@ export class UserService {
         const cacheKey = CacheKeyBuilder.userProfile(userId);
         const cachedUser = await this.cacheService.get(cacheKey);
 
-        if (cachedUser) {
-            return JSON.parse(cachedUser);
-        }
+        // if (cachedUser) {
+        //     return JSON.parse(cachedUser);
+        // }
 
         // If not in cache, get from database
         const user = await this.prisma.user.findUnique({
@@ -102,29 +102,37 @@ export class UserService {
                     where: { deleted: false },
                     select: { id: true },
                 },
+                Follow_Follow_followerIdToUser: true,
+                Follow_Follow_followingIdToUser: true,
             },
         });
 
+        console.log('Fetched user from DB:', user);
         if (!user) {
             return null;
         }
 
         // Count followers and following
-        const followersCount = 0; // TODO: Implement followers count when Follower model is added
-        const followingCount = 0; // TODO: Implement following count when Follower model is added
-        const isFollowing = false; // TODO: Implement isFollowing when Follower model is added
+        const followersCount = user.Follow_Follow_followerIdToUser.length;
+        const followingCount = user.Follow_Follow_followingIdToUser.length;
+        const isFollowing = user.Follow_Follow_followerIdToUser.some(
+            (follow) => follow.followerId === currentUserId,
+        );
 
         const profileData = {
             id: user.id,
             username: user.userName,
+            password: user.password,
             email: user.email,
-            avatar: '', // TODO: Add avatar field to User model if needed
+            avatar: user.avatar || '',
             fullName: user.fullName || '',
             bio: '', // TODO: Add bio field to User model if needed
+            gender: user.gender,
+            phone: user.phone || '',
             followers: followersCount,
             following: followingCount,
             posts: user.Post.length,
-            isFollowing: currentUserId ? isFollowing : false,
+            isFollowing: isFollowing,
             createdAt: user.createdAt.toISOString(),
         };
 
@@ -136,5 +144,24 @@ export class UserService {
         );
 
         return profileData;
+    }
+
+    async updateProfile(userId: number, data: { fullName?: string; avatar?: string; phone?: string; gender?: number }) {
+        const updateData: any = {};
+        if (data.fullName !== undefined) updateData.fullName = data.fullName;
+        if (data.avatar !== undefined) updateData.avatar = data.avatar;
+        if (data.phone !== undefined) updateData.phone = data.phone;
+        if (data.gender !== undefined) updateData.gender = data.gender;
+
+        const updated = await this.prisma.user.update({
+            where: { id: userId },
+            data: updateData,
+        });
+
+        // Invalidate cache for this user's profile
+        const cacheKey = CacheKeyBuilder.userProfile(userId);
+        await this.cacheService.delete(cacheKey);
+
+        return updated;
     }
 }

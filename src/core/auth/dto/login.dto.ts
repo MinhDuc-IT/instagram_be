@@ -38,6 +38,15 @@ export class LoginResponseDto {
   email: string;
 
   @Expose()
+  fullName: string;
+
+  @Expose()
+  gender: boolean;
+
+  @Expose()
+  phone: string;
+
+  @Expose()
   accessToken: string;
 
   @Expose()

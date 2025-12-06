@@ -15,8 +15,6 @@ model User {
   gender                                     Int?
   phone                                      String?
   role                                       String               @default("USER")
-  loginType                                  String               @default("LOCAL")
-  loginToken                                 String?              @unique
   authId                                     String?
   trialExpiresAt                             DateTime?
   isVerified                                 Boolean              @default(false)
@@ -30,6 +28,9 @@ model User {
   deletedAt                                  DateTime?
   deletedBy                                  String?
   fullName                                   String?
+  avatar                                     String?
+  loginType                                  String               @default("LOCAL")
+  loginToken                                 String?              @unique
   Comment                                    Comment[]
   CommentLike                                CommentLike[]
   ConversationMember                         ConversationMember[]
@@ -41,6 +42,7 @@ model User {
   Notification_Notification_senderIdToUser   Notification[]       @relation("Notification_senderIdToUser")
   Post                                       Post[]
   PostLike                                   PostLike[]
+  PostSave                                   PostSave[]
   Story                                      Story[]
   StoryLike                                  StoryLike[]
   StoryView                                  StoryView[]
@@ -216,6 +218,18 @@ model ConversationMember {
   @@index([userId])
 }
 
+model PostSave {
+  id        Int      @id @default(autoincrement())
+  actorId   Int
+  postId    String
+  createdAt DateTime @default(now())
+  User      User     @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  Post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([actorId, postId])
+  @@index([postId])
+}
+
 model Follow {
   id                            Int      @id @default(autoincrement())
   followerId                    Int
@@ -288,7 +302,7 @@ model Post {
   isCommentsDisabled Boolean         @default(false)
   createdDate        DateTime        @default(now())
   createdBy          String?         @db.VarChar(255)
-  modifiedDate       DateTime        @default(now()) @updatedAt
+  modifiedDate       DateTime        @updatedAt
   modifiedBy         String?         @db.VarChar(255)
   deleted            Boolean         @default(false)
   deletedDate        DateTime?
@@ -297,6 +311,7 @@ model Post {
   User               User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   PostLike           PostLike[]
   UploadedAsset      UploadedAsset[]
+  postSaves          PostSave[]
 
   @@index([createdDate])
   @@index([deleted])

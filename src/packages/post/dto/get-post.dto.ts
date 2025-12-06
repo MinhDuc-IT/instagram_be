@@ -35,6 +35,32 @@ export class MediaDto {
   fileSize: number;
 }
 
+export class CommentDto {
+  @Expose()
+  id: number;
+
+  @Expose()
+  userId: number;
+
+  @Expose()
+  username: string;
+
+  @Expose()
+  userAvatar: string | null;
+
+  @Expose()
+  content: string;
+
+  @Expose()
+  replyTo: string | null;
+
+  @Expose()
+  createdAt: string;
+
+  @Expose()
+  updatedAt: string;
+}
+
 export class PostDto {
   @Expose()
   id: string;
@@ -67,7 +93,10 @@ export class PostDto {
   likes: number;
 
   @Expose()
-  comments: any[];
+  commentsCount: number;
+  
+  @Expose()
+  comments: CommentDto[];
 
   @Expose()
   isLiked: boolean;

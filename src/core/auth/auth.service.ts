@@ -31,7 +31,7 @@ export class AuthService {
     private readonly cacheService: CacheService,
     private readonly emailService: EmailService,
     private readonly prisma: PrismaService,
-  ) {}
+  ) { }
 
   async register(registerDto: RegisterUserDto, clientMetadata: ClientMetadata) {
     // Check if user already exists
@@ -181,11 +181,15 @@ export class AuthService {
 
       return {
         id: user.id,
-        username: user.username,
+        username: user.username || user.userName,
         email: user.email,
         accessToken,
         refreshToken,
         expiresAt,
+        avatar: user.avatar,
+        fullName: user.fullName,
+        gender: user.gender,
+        phone: user.phone,
       };
     } catch (error) {
       this.logger.error(`Login failed: ${error.message}`, error.stack);
@@ -301,7 +305,7 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({
       where: { id: userId, loginToken: tokenLogin },
     });
-    
+
     if (!user) {
       throw new BadRequestException('user not found');
     }

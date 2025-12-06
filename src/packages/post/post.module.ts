@@ -9,6 +9,7 @@ import { UPLOAD_CONSTANTS } from '../../core/upload/constants/upload.constants';
 import { cloudinaryProvider } from '../../config/cloudinary.config';
 import { TransformService } from '../../core/upload/services/transform.service';
 import { BackgroundJobRepository } from '../../core/upload/repositories/background-job.repository';
+import { CommentService } from './comment.service';
 
 @Module({
     imports: [
@@ -17,6 +18,6 @@ import { BackgroundJobRepository } from '../../core/upload/repositories/backgrou
         }),
     ],
     controllers: [PostController],
-    providers: [PostService, PrismaService, UploadAssetService, CloudinaryService, cloudinaryProvider, TransformService, BackgroundJobRepository],
+    providers: [PostService, PrismaService, UploadAssetService, CloudinaryService, cloudinaryProvider, TransformService, BackgroundJobRepository, CommentService],
 })
 export class PostModule { }
