@@ -1,8 +1,130 @@
--- AlterTable
-ALTER TABLE "UploadedAsset" ADD COLUMN     "postId" TEXT;
+-- CreateTable
+CREATE TABLE "User" (
+    "id" SERIAL NOT NULL,
+    "userName" TEXT NOT NULL,
+    "email" TEXT NOT NULL,
+    "password" TEXT NOT NULL,
+    "gender" INTEGER,
+    "phone" TEXT,
+    "role" TEXT NOT NULL DEFAULT 'USER',
+    "authId" TEXT,
+    "trialExpiresAt" TIMESTAMP(3),
+    "isVerified" BOOLEAN NOT NULL DEFAULT false,
+    "lastLogin" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdBy" TEXT,
+    "modifiedAt" TIMESTAMP(3),
+    "modifiedBy" TEXT,
+    "deleted" BOOLEAN NOT NULL DEFAULT false,
+    "deletedAt" TIMESTAMP(3),
+    "deletedBy" TEXT,
+    "fullName" TEXT,
+    "avatar" TEXT,
+    "loginType" TEXT NOT NULL DEFAULT 'LOCAL',
+    "loginToken" TEXT,
 
--- AlterTable
-ALTER TABLE "User" ADD COLUMN     "loginType" TEXT NOT NULL DEFAULT 'LOCAL';
+    CONSTRAINT "User_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "user_devices" (
+    "id" SERIAL NOT NULL,
+    "userId" INTEGER NOT NULL,
+    "deviceName" TEXT NOT NULL,
+    "userAgent" TEXT NOT NULL,
+    "deviceType" TEXT NOT NULL,
+    "ipAddress" TEXT NOT NULL,
+    "location" TEXT,
+    "refreshToken" TEXT NOT NULL,
+    "lastActive" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "user_devices_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "user_tokens" (
+    "id" SERIAL NOT NULL,
+    "userId" INTEGER NOT NULL,
+    "deviceId" INTEGER NOT NULL,
+    "refreshToken" TEXT NOT NULL,
+    "refreshTokenFamily" TEXT NOT NULL,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+    "invalidated" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "user_tokens_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "user_verifications" (
+    "id" SERIAL NOT NULL,
+    "userId" INTEGER NOT NULL,
+    "token" TEXT NOT NULL,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+    "isUsed" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "user_verifications_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "BackgroundJob" (
+    "id" TEXT NOT NULL,
+    "type" VARCHAR(50) NOT NULL,
+    "fileName" VARCHAR(255) NOT NULL,
+    "status" VARCHAR(50) NOT NULL,
+    "result" JSONB,
+    "error" TEXT,
+    "progress" INTEGER NOT NULL DEFAULT 0,
+    "retryCount" INTEGER NOT NULL DEFAULT 0,
+    "maxRetries" INTEGER NOT NULL DEFAULT 3,
+    "publicId" VARCHAR(255),
+    "url" TEXT,
+    "secureUrl" TEXT,
+    "fileSize" INTEGER,
+    "format" VARCHAR(50),
+    "createdDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdBy" VARCHAR(255),
+    "modifiedDate" TIMESTAMP(3) NOT NULL,
+    "modifiedBy" VARCHAR(255),
+    "deleted" BOOLEAN NOT NULL DEFAULT false,
+    "deletedDate" TIMESTAMP(3),
+    "deletedBy" VARCHAR(255),
+    "completedAt" TIMESTAMP(3),
+
+    CONSTRAINT "BackgroundJob_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "UploadedAsset" (
+    "id" TEXT NOT NULL,
+    "publicId" VARCHAR(255) NOT NULL,
+    "type" VARCHAR(50) NOT NULL,
+    "fileName" VARCHAR(255) NOT NULL,
+    "url" TEXT NOT NULL,
+    "secureUrl" TEXT NOT NULL,
+    "format" VARCHAR(50) NOT NULL,
+    "width" INTEGER,
+    "height" INTEGER,
+    "duration" DOUBLE PRECISION,
+    "fileSize" INTEGER NOT NULL,
+    "folder" VARCHAR(255) NOT NULL,
+    "tags" TEXT NOT NULL,
+    "createdDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdBy" VARCHAR(255),
+    "modifiedDate" TIMESTAMP(3) NOT NULL,
+    "modifiedBy" VARCHAR(255),
+    "deleted" BOOLEAN NOT NULL DEFAULT false,
+    "deletedDate" TIMESTAMP(3),
+    "deletedBy" VARCHAR(255),
+    "postId" TEXT,
+
+    CONSTRAINT "UploadedAsset_pkey" PRIMARY KEY ("id")
+);
 
 -- CreateTable
 CREATE TABLE "Comment" (
@@ -49,6 +171,16 @@ CREATE TABLE "ConversationMember" (
     "role" TEXT,
 
     CONSTRAINT "ConversationMember_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "PostSave" (
+    "id" SERIAL NOT NULL,
+    "actorId" INTEGER NOT NULL,
+    "postId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "PostSave_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -161,6 +293,51 @@ CREATE TABLE "StoryView" (
 );
 
 -- CreateIndex
+CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "User_loginToken_key" ON "User"("loginToken");
+
+-- CreateIndex
+CREATE INDEX "user_devices_userId_idx" ON "user_devices"("userId");
+
+-- CreateIndex
+CREATE INDEX "user_tokens_userId_deviceId_idx" ON "user_tokens"("userId", "deviceId");
+
+-- CreateIndex
+CREATE INDEX "user_tokens_refreshTokenFamily_idx" ON "user_tokens"("refreshTokenFamily");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "user_verifications_token_key" ON "user_verifications"("token");
+
+-- CreateIndex
+CREATE INDEX "BackgroundJob_status_idx" ON "BackgroundJob"("status");
+
+-- CreateIndex
+CREATE INDEX "BackgroundJob_createdDate_idx" ON "BackgroundJob"("createdDate");
+
+-- CreateIndex
+CREATE INDEX "BackgroundJob_type_idx" ON "BackgroundJob"("type");
+
+-- CreateIndex
+CREATE INDEX "BackgroundJob_deleted_idx" ON "BackgroundJob"("deleted");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "UploadedAsset_publicId_key" ON "UploadedAsset"("publicId");
+
+-- CreateIndex
+CREATE INDEX "UploadedAsset_publicId_idx" ON "UploadedAsset"("publicId");
+
+-- CreateIndex
+CREATE INDEX "UploadedAsset_createdDate_idx" ON "UploadedAsset"("createdDate");
+
+-- CreateIndex
+CREATE INDEX "UploadedAsset_type_idx" ON "UploadedAsset"("type");
+
+-- CreateIndex
+CREATE INDEX "UploadedAsset_deleted_idx" ON "UploadedAsset"("deleted");
+
+-- CreateIndex
 CREATE INDEX "Comment_parentId_idx" ON "Comment"("parentId");
 
 -- CreateIndex
@@ -183,6 +360,12 @@ CREATE INDEX "ConversationMember_userId_idx" ON "ConversationMember"("userId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "ConversationMember_conversationId_userId_key" ON "ConversationMember"("conversationId", "userId");
+
+-- CreateIndex
+CREATE INDEX "PostSave_postId_idx" ON "PostSave"("postId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PostSave_actorId_postId_key" ON "PostSave"("actorId", "postId");
 
 -- CreateIndex
 CREATE INDEX "Follow_followerId_idx" ON "Follow"("followerId");
@@ -248,6 +431,18 @@ CREATE INDEX "StoryView_storyId_idx" ON "StoryView"("storyId");
 CREATE UNIQUE INDEX "StoryView_actorId_storyId_key" ON "StoryView"("actorId", "storyId");
 
 -- AddForeignKey
+ALTER TABLE "user_devices" ADD CONSTRAINT "user_devices_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "user_tokens" ADD CONSTRAINT "user_tokens_deviceId_fkey" FOREIGN KEY ("deviceId") REFERENCES "user_devices"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "user_tokens" ADD CONSTRAINT "user_tokens_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "user_verifications" ADD CONSTRAINT "user_verifications_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "UploadedAsset" ADD CONSTRAINT "UploadedAsset_postId_fkey" FOREIGN KEY ("postId") REFERENCES "Post"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -270,6 +465,12 @@ ALTER TABLE "ConversationMember" ADD CONSTRAINT "ConversationMember_conversation
 
 -- AddForeignKey
 ALTER TABLE "ConversationMember" ADD CONSTRAINT "ConversationMember_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PostSave" ADD CONSTRAINT "PostSave_actorId_fkey" FOREIGN KEY ("actorId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PostSave" ADD CONSTRAINT "PostSave_postId_fkey" FOREIGN KEY ("postId") REFERENCES "Post"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Follow" ADD CONSTRAINT "Follow_followerId_fkey" FOREIGN KEY ("followerId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
