@@ -63,7 +63,7 @@ export class AuthService {
       password: hashedPassword,
       authId,
       trialExpiresAt,
-      isVerified: false,
+      isVerified: true,
       lastLogin: new Date(),
     });
 
