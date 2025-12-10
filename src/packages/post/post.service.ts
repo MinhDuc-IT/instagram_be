@@ -1,4 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
+import path from 'path';
+import * as tmp from 'tmp';
+import * as fs from 'fs';
 import { PrismaService } from '../../core/prisma/prisma.service';
 import { CloudinaryService } from '../../core/upload/services/cloudinary.service';
 import { UploadAssetService } from '../../core/upload/services/upload-asset.service';
@@ -107,20 +110,26 @@ export class PostService {
             });
 
             const isVideo = file.mimetype.startsWith('video/');
+            const ext = path.extname(file.originalname);
+            const tmpFile = tmp.fileSync({ postfix: ext });
+            fs.writeFileSync(tmpFile.name, file.buffer);
+            console.log('Temporary file created at:', tmpFile.name);
+
             await this.uploadQueue.add(
-                isVideo ? JOB_TYPES.UPLOAD_VIDEO : JOB_TYPES.UPLOAD_IMAGE,
-                {
-                    jobId: job.id,
-                    fileBase64: file.buffer.toString('base64'),
-                    fileName: file.originalname,
-                    type: isVideo ? 'video' : 'image',
-                    postId: post.id,
-                    userId,
-                },
-                {
-                    attempts: 3,
-                    backoff: { type: 'exponential', delay: 2000 },
-                },
+              isVideo ? JOB_TYPES.UPLOAD_VIDEO : JOB_TYPES.UPLOAD_IMAGE,
+              {
+                jobId: job.id,
+                // fileBase64: file.buffer.toString('base64'),
+                filePath: tmpFile.name,
+                fileName: file.originalname,
+                type: isVideo ? 'video' : 'image',
+                postId: post.id,
+                userId,
+              },
+              {
+                attempts: 3,
+                backoff: { type: 'exponential', delay: 2000 },
+              },
             );
         }
 
