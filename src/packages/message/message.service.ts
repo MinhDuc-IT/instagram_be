@@ -2,14 +2,21 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { PrismaService } from '../../core/prisma/prisma.service';
 import { ConversationDto, CreateConversationDto } from './dto/conversation.dto';
 import { MessageDto, SendMessageDto } from './dto/message.dto';
+import { MessageGateway } from './message.gateway';
 
 @Injectable()
 export class MessageService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(forwardRef(() => MessageGateway))
+    private readonly messageGateway: MessageGateway,
+  ) {}
 
   /**
    * Lấy danh sách conversations của user hiện tại
@@ -361,7 +368,7 @@ export class MessageService {
       data: { updatedAt: new Date() },
     });
 
-    return {
+    const messageDto: MessageDto = {
       id: message.id.toString(),
       conversationId: message.conversationId.toString(),
       senderId: message.senderId.toString(),
@@ -369,6 +376,11 @@ export class MessageService {
       createdAt: message.createdAt.toISOString(),
       updatedAt: message.updatedAt.toISOString(),
     };
+
+    // Emit new message via socket
+    await this.messageGateway.emitNewMessage(conversationId, messageDto);
+
+    return messageDto;
   }
 
   /**
@@ -420,9 +432,16 @@ export class MessageService {
       });
     }
 
+    const readCount = unreadMessages.length;
+
+    // Emit message read event via socket
+    if (readCount > 0) {
+      await this.messageGateway.emitMessageRead(conversationId, userId, readCount);
+    }
+
     return {
       success: true,
-      readCount: unreadMessages.length,
+      readCount,
     };
   }
 }
