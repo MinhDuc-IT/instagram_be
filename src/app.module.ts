@@ -6,6 +6,7 @@ import { PrismaService } from './core/prisma/prisma.service';
 import { AuthModule } from './core/auth/auth.module';
 import { CacheModule } from './core/cache/cache.module';
 import { EmailModule } from './core/email/email.module';
+import { ReelsModule } from './packages/reels/reels.module';
 import { ConfigModule as _ConfigModule } from './config/config.module';
 import { UploadModule } from './core/upload/upload.module';
 import { ConfigModule } from '@nestjs/config';
@@ -21,10 +22,11 @@ import { PostModule } from './packages/post/post.module';
     ConfigModule,
     CacheModule,
     EmailModule,
-    UserModule, 
+    UserModule,
     AuthModule,
     UploadModule,
     PostModule,
+    ReelsModule,
   ],
   controllers: [AppController],
   providers: [
@@ -36,4 +38,4 @@ import { PostModule } from './packages/post/post.module';
     // },
   ],
 })
-export class AppModule { }
+export class AppModule {}

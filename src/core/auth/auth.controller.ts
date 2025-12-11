@@ -28,6 +28,7 @@ import { RegisterUserDto, RegisterResponseDto } from './dto/register.dto';
 import { AuthService } from "./auth.service";
 import { Public } from '../decorators/response.decorator';
 import { FacebookAuthGuard } from './guards/facebook-auth.guard';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { ConfigService } from '@nestjs/config';
 import {
     VerifyAccountDto,
@@ -35,6 +36,7 @@ import {
 } from './dto/verify-account.dto';
 
 @ApiTags('Authentication')
+@UseGuards(JwtAuthGuard)
 @Controller('auth')
 @UseInterceptors(TransformResponseInterceptor)
 export class AuthController {
@@ -127,8 +129,8 @@ export class AuthController {
   @ApiOperation({ summary: 'Logout current device' })
   @ApiResponse({ status: 204, description: 'Successfully logged out' })
   async logout(@Req() request: any) {
-    const { userId, deviceId } = request.user;
-    await this.authService.logout(userId, deviceId);
+    const { id, deviceId } = request.user;
+    await this.authService.logout(id, deviceId);
     return;
   }
 
