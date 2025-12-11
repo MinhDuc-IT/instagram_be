@@ -6,6 +6,7 @@ import { CloudinaryService } from '../services/cloudinary.service';
 import { BackgroundJobRepository } from '../repositories/background-job.repository';
 import { UploadAssetService } from '../services/upload-asset.service';
 import { UPLOAD_CONSTANTS, JOB_TYPES } from '../constants/upload.constants';
+import { deleteTempFile } from '../helpers/temp-file';
 
 interface UploadJobData {
     jobId: string;
@@ -54,21 +55,22 @@ export class UploadProcessor {
 
             // const fileBuffer = Buffer.from(fileBase64, 'base64');
             // const result = await this.cloudinaryService.uploadImage(fileBuffer, fileName);
-            const buffer = fs.readFileSync(filePath);
-            const result = await this.cloudinaryService.uploadImage(buffer, fileName);
+            // const buffer = fs.readFileSync(filePath);
+            const result = await this.cloudinaryService.uploadImage(filePath, fileName);
             fs.unlinkSync(filePath);
 
             await job.progress(70);
             await this.backgroundJobRepository.updateStatus(jobId, 'processing', 70);
 
-            // Save to database
-            await this.uploadAssetService.saveAsset(
-                result,
-                'image',
-                fileName,
-                UPLOAD_CONSTANTS.IMAGE_FOLDER,
-                postId,
-            );
+            if(postId != null){
+                await this.uploadAssetService.saveAsset(
+                    result,
+                    'image',
+                    fileName,
+                    UPLOAD_CONSTANTS.IMAGE_FOLDER,
+                    postId,
+                );
+            }
 
             await job.progress(100);
             await this.backgroundJobRepository.updateResult(jobId, result);
@@ -80,6 +82,8 @@ export class UploadProcessor {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             await this.backgroundJobRepository.updateError(jobId, errorMessage, true);
             throw error;
+        } finally {
+            deleteTempFile(filePath);
         }
     }
 
@@ -95,21 +99,22 @@ export class UploadProcessor {
 
             // const fileBuffer = Buffer.from(fileBase64, 'base64');
             // const result = await this.cloudinaryService.uploadVideo(fileBuffer, fileName);
-            const buffer = fs.readFileSync(filePath);
-            const result = await this.cloudinaryService.uploadVideo(buffer, fileName);
+            // const buffer = fs.readFileSync(filePath);
+            const result = await this.cloudinaryService.uploadVideo(filePath, fileName);
             fs.unlinkSync(filePath);
 
             await job.progress(70);
             await this.backgroundJobRepository.updateStatus(jobId, 'processing', 70);
 
-            // Save to database
-            await this.uploadAssetService.saveAsset(
-                result,
-                'video',
-                fileName,
-                UPLOAD_CONSTANTS.VIDEO_FOLDER,
-                postId,
-            );
+            if (postId != null) {
+                await this.uploadAssetService.saveAsset(
+                    result,
+                    'video',
+                    fileName,
+                    UPLOAD_CONSTANTS.VIDEO_FOLDER,
+                    postId,
+                );
+            }
 
             await job.progress(100);
             await this.backgroundJobRepository.updateResult(jobId, result);
@@ -121,6 +126,8 @@ export class UploadProcessor {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             await this.backgroundJobRepository.updateError(jobId, errorMessage, true);
             throw error;
+        } finally {
+            deleteTempFile(filePath);
         }
     }
 }

@@ -14,6 +14,7 @@ import { JOB_TYPES, UPLOAD_CONSTANTS } from '../../core/upload/constants/upload.
 import { BackgroundJobRepository } from '../../core/upload/repositories/background-job.repository';
 import { CacheService } from '../../core/cache/cache.service';
 import { CacheKeyBuilder } from '../../core/cache/cache.config';
+import { deleteTempFile, writeTempFile } from 'src/core/upload/helpers/temp-file';
 
 @Injectable()
 export class PostService {
@@ -31,12 +32,9 @@ export class PostService {
     async createPost(dto: CreatePostDto, files: Express.Multer.File[], userId: number) {
         this.logger.log(`Creating post for user ${userId}`);
 
-        this.logger.debug(`CreatePostDto: ${JSON.stringify(dto)}`);
-
         const isLikesHidden = String(dto.isLikesHidden) === 'true';
         const isCommentsDisabled = String(dto.isCommentsDisabled) === 'true';
 
-        // Ensure user exists to avoid foreign key constraint violations
         const user = await this.prisma.user.findUnique({ where: { id: Number(userId) } });
         if (!user) throw new Error('User not found');
 
@@ -52,21 +50,28 @@ export class PostService {
         });
 
         for (const file of files) {
-            const isVideo = file.mimetype.startsWith('video/');
-            const result = isVideo
-                ? await this.cloudinaryService.uploadVideo(file.buffer, file.originalname)
-                : await this.cloudinaryService.uploadImage(file.buffer, file.originalname);
+            const filePath = writeTempFile(file.buffer, file.originalname);
 
-            await this.uploadAssetService.saveAsset(
-                result,
-                isVideo ? 'video' : 'image',
-                file.originalname,
-                isVideo ? UPLOAD_CONSTANTS.VIDEO_FOLDER : UPLOAD_CONSTANTS.IMAGE_FOLDER,
-                post.id,
-            );
+            try {
+                const isVideo = file.mimetype.startsWith('video/');
+                const type = isVideo ? 'video' : 'image';
+
+                const result = isVideo
+                    ? await this.cloudinaryService.uploadVideo(filePath, file.originalname)
+                    : await this.cloudinaryService.uploadImage(filePath, file.originalname);
+
+                await this.uploadAssetService.saveAsset(
+                    result,
+                    type,
+                    file.originalname,
+                    type === 'video' ? UPLOAD_CONSTANTS.VIDEO_FOLDER : UPLOAD_CONSTANTS.IMAGE_FOLDER,
+                    post.id,
+                );
+            } finally {
+                deleteTempFile(filePath);
+            }
         }
 
-        // Invalidate cache for this user's profile
         const cacheKey = CacheKeyBuilder.userProfile(userId);
         await this.cacheService.delete(cacheKey);
 
@@ -110,27 +115,32 @@ export class PostService {
             });
 
             const isVideo = file.mimetype.startsWith('video/');
-            const ext = path.extname(file.originalname);
-            const tmpFile = tmp.fileSync({ postfix: ext });
-            fs.writeFileSync(tmpFile.name, file.buffer);
-            console.log('Temporary file created at:', tmpFile.name);
+            // const ext = path.extname(file.originalname);
+            // const tmpFile = tmp.fileSync({ postfix: ext });
+            // fs.writeFileSync(tmpFile.name, file.buffer);
+            const filePath = writeTempFile(file.buffer, file.originalname);
+            this.logger.log(`Temporary file created at: ${filePath}`);
 
-            await this.uploadQueue.add(
-              isVideo ? JOB_TYPES.UPLOAD_VIDEO : JOB_TYPES.UPLOAD_IMAGE,
-              {
-                jobId: job.id,
-                // fileBase64: file.buffer.toString('base64'),
-                filePath: tmpFile.name,
-                fileName: file.originalname,
-                type: isVideo ? 'video' : 'image',
-                postId: post.id,
-                userId,
-              },
-              {
-                attempts: 3,
-                backoff: { type: 'exponential', delay: 2000 },
-              },
-            );
+            try {
+                await this.uploadQueue.add(
+                    isVideo ? JOB_TYPES.UPLOAD_VIDEO : JOB_TYPES.UPLOAD_IMAGE,
+                    {
+                        jobId: job.id,
+                        // fileBase64: file.buffer.toString('base64'),
+                        filePath: filePath,
+                        fileName: file.originalname,
+                        type: isVideo ? 'video' : 'image',
+                        postId: post.id,
+                        userId,
+                    },
+                    {
+                        attempts: 3,
+                        backoff: { type: 'exponential', delay: 2000 },
+                    },
+                );
+            } finally {
+                // deleteTempFile(filePath);
+            }
         }
 
         this.logger.log(`Background upload scheduled for post ${post.id}`);
