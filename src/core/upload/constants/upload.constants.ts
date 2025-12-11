@@ -1,6 +1,6 @@
 export const UPLOAD_CONSTANTS = {
     MAX_IMAGE_SIZE: 10 * 1024 * 1024, // 10MB
-    MAX_VIDEO_SIZE: 50 * 1024 * 1024, // 50MB
+    MAX_VIDEO_SIZE: 100 * 1024 * 1024, // 100MB
 
     ALLOWED_IMAGE_TYPES: [
         'image/jpeg',

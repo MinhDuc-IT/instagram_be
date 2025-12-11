@@ -12,7 +12,7 @@ import {
     Logger,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { memoryStorage } from 'multer';
+import { diskStorage, memoryStorage } from 'multer';
 import { InjectQueue } from '@nestjs/bull';
 import type { Queue } from 'bull';
 import {
@@ -31,6 +31,10 @@ import { UploadResponseDto } from '../dto/upload-response.dto';
 import { BackgroundJobDto, JobStatusResponseDto } from '../dto/background-job.dto';
 import { UPLOAD_CONSTANTS, JOB_TYPES } from '../constants/upload.constants';
 import { Public } from 'src/core/decorators/response.decorator';
+import path from 'path';
+import * as tmp from 'tmp';
+import * as fs from 'fs';
+import { deleteTempFile, writeTempFile } from '../helpers/temp-file';
 
 @ApiTags('Upload')
 @Controller('api/upload')
@@ -48,7 +52,18 @@ export class UploadController {
 
     @Post('image')
     @HttpCode(HttpStatus.CREATED)
-    @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
+    @UseInterceptors(
+        FileInterceptor('file', {
+            storage: diskStorage({
+                destination: './tmp/uploads', // hoặc os.tmpdir()
+                filename: (req, file, cb) => {
+                    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
+                    const ext = file.originalname.split('.').pop();
+                    cb(null, `${unique}.${ext}`);
+                },
+            }),
+        }),
+    )
     @ApiConsumes('multipart/form-data')
     @ApiBody({
         description: 'Upload image file',
@@ -62,16 +77,7 @@ export class UploadController {
             },
         },
     })
-    @ApiOperation({ summary: 'Upload an image synchronously' })
-    @ApiResponse({
-        status: HttpStatus.CREATED,
-        description: 'Image uploaded successfully',
-        type: UploadResponseDto,
-    })
-    @ApiResponse({
-        status: HttpStatus.BAD_REQUEST,
-        description: 'Invalid file type or size',
-    })
+    @ApiOperation({ summary: 'Upload an image with filePath (fast)' })
     async uploadImage(
         @UploadedFile(
             new FileValidationPipe({
@@ -85,11 +91,10 @@ export class UploadController {
         this.logger.log(`Uploading image: ${file.originalname}`);
 
         const result = await this.cloudinaryService.uploadImage(
-            file.buffer,
+            file.path,
             file.originalname,
         );
 
-        // Save to database
         await this.uploadAssetService.saveAsset(
             result,
             'image',
@@ -101,28 +106,32 @@ export class UploadController {
         return result;
     }
 
+
     @Post('video')
     @HttpCode(HttpStatus.CREATED)
-    @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
+    @UseInterceptors(
+        FileInterceptor('file', {
+            storage: diskStorage({
+                destination: './tmp/uploads',
+                filename: (req, file, cb) => {
+                    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
+                    const ext = file.originalname.split('.').pop();
+                    cb(null, `${unique}.${ext}`);
+                },
+            }),
+        }),
+    )
     @ApiConsumes('multipart/form-data')
     @ApiBody({
         description: 'Upload video file',
         schema: {
             type: 'object',
             properties: {
-                file: {
-                    type: 'string',
-                    format: 'binary',
-                },
+                file: { type: 'string', format: 'binary' },
             },
         },
     })
-    @ApiOperation({ summary: 'Upload a video synchronously' })
-    @ApiResponse({
-        status: HttpStatus.CREATED,
-        description: 'Video uploaded successfully',
-        type: UploadResponseDto,
-    })
+    @ApiOperation({ summary: 'Upload a video (fast optimized)' })
     async uploadVideo(
         @UploadedFile(
             new FileValidationPipe({
@@ -136,17 +145,16 @@ export class UploadController {
         this.logger.log(`Uploading video: ${file.originalname}`);
 
         const result = await this.cloudinaryService.uploadVideo(
-            file.buffer,
+            file.path,
             file.originalname,
         );
 
-        // Save to database
         await this.uploadAssetService.saveAsset(
             result,
             'video',
             file.originalname,
             UPLOAD_CONSTANTS.VIDEO_FOLDER,
-            null
+            null,
         );
 
         return result;
@@ -195,23 +203,31 @@ export class UploadController {
             createdDate: new Date(),
         });
 
-        // Add to queue (fire and forget)
-        await this.uploadQueue.add(
-            JOB_TYPES.UPLOAD_IMAGE,
-            {
-                jobId: job.id,
-                fileBase64: file.buffer.toString('base64'),
-                fileName: file.originalname,
-                type: 'image',
-            },
-            {
-                attempts: 3,
-                backoff: {
-                    type: 'exponential',
-                    delay: 2000,
+        const filePath = writeTempFile(file.buffer, file.originalname);
+        console.log('Temporary file created at:', filePath);
+
+        try {
+            // Add to queue (fire and forget)
+            await this.uploadQueue.add(
+                JOB_TYPES.UPLOAD_IMAGE,
+                {
+                    jobId: job.id,
+                    // fileBase64: file.buffer.toString('base64'),
+                    filePath: filePath,
+                    fileName: file.originalname,
+                    type: 'image',
                 },
-            },
-        );
+                {
+                    attempts: 3,
+                    backoff: {
+                        type: 'exponential',
+                        delay: 2000,
+                    },
+                },
+            );
+        } finally {
+            // deleteTempFile(filePath);
+        }
 
         this.logger.log(`Background image upload scheduled: ${job.id}`);
 
@@ -265,23 +281,31 @@ export class UploadController {
             createdDate: new Date(),
         });
 
-        // Add to queue (fire and forget)
-        await this.uploadQueue.add(
-            JOB_TYPES.UPLOAD_VIDEO,
-            {
-                jobId: job.id,
-                fileBase64: file.buffer.toString('base64'),
-                fileName: file.originalname,
-                type: 'video',
-            },
-            {
-                attempts: 3,
-                backoff: {
-                    type: 'exponential',
-                    delay: 2000,
+        const filePath = writeTempFile(file.buffer, file.originalname);
+        console.log('Temporary file created at:', filePath);
+
+        try {
+            // Add to queue (fire and forget)
+            await this.uploadQueue.add(
+                JOB_TYPES.UPLOAD_VIDEO,
+                {
+                    jobId: job.id,
+                    // fileBase64: file.buffer.toString('base64'),
+                    filePath: filePath,
+                    fileName: file.originalname,
+                    type: 'video',
                 },
-            },
-        );
+                {
+                    attempts: 3,
+                    backoff: {
+                        type: 'exponential',
+                        delay: 2000,
+                    },
+                },
+            );
+        } finally {
+            // deleteTempFile(filePath);
+        }
 
         this.logger.log(`Background video upload scheduled: ${job.id}`);
 
