@@ -10,7 +10,7 @@ import { ReelsPaginationResponseDto } from './dto/reel-response.dto';
 @ApiTags('Reels')
 @ApiBearerAuth()
 @Controller('reels')
-// @UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard)
 export class ReelsController {
   constructor(private readonly reelsService: ReelsService) {}
 
@@ -27,7 +27,7 @@ export class ReelsController {
     @Req() req: Request,
   ): Promise<ReelsPaginationResponseDto> {
     const limit = Number(query.limit) || 10;
-    const userId = req.user?.['userId'];
+    const userId = req.user?.['id'];
     return this.reelsService.getReelsPagination(limit, query.cursor, userId);
   }
 }

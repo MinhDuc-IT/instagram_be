@@ -6,7 +6,7 @@ export class ReelsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async findReelsPagination(limit: number, cursor?: string, userId?: number) {
-    // Lấy posts có video
+
     const posts = await this.prisma.post.findMany({
       where: {
         deleted: false,
@@ -19,7 +19,7 @@ export class ReelsRepository {
         },
       },
       orderBy: { createdDate: 'desc' },
-      take: limit + 1, // Lấy thêm 1 để check hasMore
+      take: limit + 1,
       ...(cursor && {
         skip: 1,
         cursor: { id: cursor },
