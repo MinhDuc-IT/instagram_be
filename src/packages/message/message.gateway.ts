@@ -164,4 +164,50 @@ export class MessageGateway
     const sockets = this.userSockets.get(userId);
     return sockets ? Array.from(sockets) : [];
   }
+
+  /**
+   * Handle typing start event
+   */
+  @SubscribeMessage('typing_start')
+  async handleTypingStart(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { conversationId: string },
+  ) {
+    if (!client.userId) {
+      return { error: 'Unauthorized' };
+    }
+
+    const room = `conversation:${data.conversationId}`;
+    // Emit to all clients in room except sender
+    client.to(room).emit('user_typing', {
+      conversationId: data.conversationId,
+      userId: client.userId.toString(),
+      isTyping: true,
+    });
+
+    return { success: true };
+  }
+
+  /**
+   * Handle typing stop event
+   */
+  @SubscribeMessage('typing_stop')
+  async handleTypingStop(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { conversationId: string },
+  ) {
+    if (!client.userId) {
+      return { error: 'Unauthorized' };
+    }
+
+    const room = `conversation:${data.conversationId}`;
+    // Emit to all clients in room except sender
+    client.to(room).emit('user_typing', {
+      conversationId: data.conversationId,
+      userId: client.userId.toString(),
+      isTyping: false,
+    });
+
+    return { success: true };
+  }
 }
