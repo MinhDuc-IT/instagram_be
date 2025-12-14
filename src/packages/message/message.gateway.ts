@@ -29,13 +29,13 @@ export class MessageGateway
   server: Server;
 
   private readonly logger = new Logger(MessageGateway.name);
-  private readonly userSockets = new Map<number, Set<string>>(); // userId -> Set of socketIds
+  private readonly userSockets = new Map<number, Set<string>>(); // userId -> Set of socketIds (userId -> Tập hợp các socketIds)
 
   constructor(private readonly jwtService: JwtService) {}
 
   handleConnection(client: AuthenticatedSocket) {
     try {
-      // Extract token from handshake auth or query
+      // Trích xuất token từ handshake auth hoặc query
       const token =
         (client.handshake.auth?.token as string) ||
         (client.handshake.query?.token as string) ||
@@ -50,7 +50,7 @@ export class MessageGateway
         return;
       }
 
-      // Verify JWT token
+      // Xác thực JWT token
       const payload = this.jwtService.verify<{ id?: number; sub?: number }>(
         token,
       );
@@ -62,10 +62,10 @@ export class MessageGateway
         return;
       }
 
-      // Attach userId to socket
+      // Gắn userId vào socket
       client.userId = userId;
 
-      // Track user sockets
+      // Theo dõi các socket của người dùng
       if (!this.userSockets.has(userId)) {
         this.userSockets.set(userId, new Set());
       }
@@ -96,7 +96,7 @@ export class MessageGateway
   }
 
   /**
-   * Join a conversation room
+   * Tham gia vào phòng cuộc hội thoại
    */
   @SubscribeMessage('join_conversation')
   async handleJoinConversation(
@@ -116,7 +116,7 @@ export class MessageGateway
   }
 
   /**
-   * Leave a conversation room
+   * Rời khỏi phòng cuộc hội thoại
    */
   @SubscribeMessage('leave_conversation')
   async handleLeaveConversation(
@@ -136,7 +136,7 @@ export class MessageGateway
   }
 
   /**
-   * Emit new message to conversation room
+   * Phát tin nhắn mới đến phòng cuộc hội thoại
    */
   emitNewMessage(conversationId: number, message: unknown) {
     const room = `conversation:${conversationId}`;
@@ -145,7 +145,7 @@ export class MessageGateway
   }
 
   /**
-   * Emit message read status
+   * Gửi trạng thái đã đọc tin nhắn
    */
   emitMessageRead(conversationId: number, userId: number, readCount: number) {
     const room = `conversation:${conversationId}`;
@@ -158,7 +158,7 @@ export class MessageGateway
   }
 
   /**
-   * Get all socket IDs for a user
+   * Lấy tất cả socket IDs của một người dùng
    */
   getUserSocketIds(userId: number): string[] {
     const sockets = this.userSockets.get(userId);
@@ -166,10 +166,10 @@ export class MessageGateway
   }
 
   /**
-   * Handle typing start event
+   * Xử lý sự kiện bắt đầu gõ
    */
   @SubscribeMessage('typing_start')
-  async handleTypingStart(
+  handleTypingStart(
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() data: { conversationId: string },
   ) {
@@ -178,7 +178,7 @@ export class MessageGateway
     }
 
     const room = `conversation:${data.conversationId}`;
-    // Emit to all clients in room except sender
+    // Phát đến tất cả client trong phòng trừ người gửi
     client.to(room).emit('user_typing', {
       conversationId: data.conversationId,
       userId: client.userId.toString(),
@@ -189,10 +189,10 @@ export class MessageGateway
   }
 
   /**
-   * Handle typing stop event
+   * Xử lý sự kiện dừng gõ
    */
   @SubscribeMessage('typing_stop')
-  async handleTypingStop(
+  handleTypingStop(
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() data: { conversationId: string },
   ) {
@@ -201,7 +201,7 @@ export class MessageGateway
     }
 
     const room = `conversation:${data.conversationId}`;
-    // Emit to all clients in room except sender
+    // Phát đến tất cả client trong phòng trừ người gửi
     client.to(room).emit('user_typing', {
       conversationId: data.conversationId,
       userId: client.userId.toString(),
