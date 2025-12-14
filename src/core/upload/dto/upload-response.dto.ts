@@ -5,6 +5,15 @@ export class UploadResponseDto {
   success: boolean;
 
   @ApiProperty()
+  id: string | null;
+
+  @ApiProperty()
+  type: string;
+
+  @ApiProperty()
+  fileName: string;
+
+  @ApiProperty()
   publicId: string;
 
   @ApiProperty()

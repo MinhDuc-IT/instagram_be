@@ -87,7 +87,7 @@ export class UploadController {
             }),
         )
         file: Express.Multer.File,
-    ): Promise<UploadResponseDto> {
+    ): Promise<UploadResponseDto | null> {
         this.logger.log(`Uploading image: ${file.originalname}`);
 
         const result = await this.cloudinaryService.uploadImage(
@@ -95,7 +95,7 @@ export class UploadController {
             file.originalname,
         );
 
-        await this.uploadAssetService.saveAsset(
+        const response = await this.uploadAssetService.saveAsset(
             result,
             'image',
             file.originalname,
@@ -103,7 +103,8 @@ export class UploadController {
             null
         );
 
-        return result;
+        deleteTempFile(file.path);
+        return response;
     }
 
 
@@ -141,7 +142,7 @@ export class UploadController {
             }),
         )
         file: Express.Multer.File,
-    ): Promise<UploadResponseDto> {
+    ): Promise<UploadResponseDto | null> {
         this.logger.log(`Uploading video: ${file.originalname}`);
 
         const result = await this.cloudinaryService.uploadVideo(
@@ -149,7 +150,7 @@ export class UploadController {
             file.originalname,
         );
 
-        await this.uploadAssetService.saveAsset(
+        const response = await this.uploadAssetService.saveAsset(
             result,
             'video',
             file.originalname,
@@ -157,7 +158,8 @@ export class UploadController {
             null,
         );
 
-        return result;
+        deleteTempFile(file.path);
+        return response;
     }
 
     @Post('image/background')

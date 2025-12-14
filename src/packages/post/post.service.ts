@@ -15,6 +15,11 @@ import { BackgroundJobRepository } from '../../core/upload/repositories/backgrou
 import { CacheService } from '../../core/cache/cache.service';
 import { CacheKeyBuilder } from '../../core/cache/cache.config';
 import { deleteTempFile, writeTempFile } from 'src/core/upload/helpers/temp-file';
+import { EditPostDto } from './dto/edit-post.dto';
+import {
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 
 @Injectable()
 export class PostService {
@@ -200,6 +205,8 @@ export class PostService {
             caption: post.caption ?? '',
             location: post.location ?? '',
             visibility: post.visibility,
+            isLikesHidden: post.isLikesHidden,
+            isCommentsDisabled: post.isCommentsDisabled,
             media: post.UploadedAsset.map(m => ({
                 id: m.id,
                 publicId: m.publicId,
@@ -222,6 +229,68 @@ export class PostService {
         };
 
         return dto;
+    }
+
+    async editPost(
+        postId: string,
+        userId: string,
+        dto: EditPostDto
+    ) {
+        const post = await this.prisma.post.findUnique({
+            where: { id: postId },
+            include: { UploadedAsset: true },
+        });
+
+        if (!post) {
+            throw new NotFoundException('Post not found');
+        }
+
+        if (post.userId !== Number(userId)) {
+            throw new ForbiddenException('You are not allowed to edit this post');
+        }
+
+        await this.prisma.post.update({
+            where: { id: postId },
+            data: {
+                caption: dto.caption,
+                isCommentsDisabled: dto.isCommentsDisabled,
+                isLikesHidden: dto.isLikesHidden,
+                visibility: dto.visibility,
+            },
+        });
+
+        if (dto.mediaIds !== undefined) {
+            const mediaIds = dto.mediaIds;
+
+            const existingMediaIds = post.UploadedAsset.map(m => m.id);
+
+            const mediaToAdd = mediaIds.filter(
+                id => !existingMediaIds.includes(id)
+            );
+
+            const mediaToRemove = existingMediaIds.filter(
+                id => !mediaIds.includes(id)
+            );
+
+            if (mediaToAdd.length) {
+                await this.prisma.uploadedAsset.updateMany({
+                    where: { id: { in: mediaToAdd } },
+                    data: { postId },
+                });
+            }
+
+            if (mediaToRemove.length) {
+                await this.prisma.uploadedAsset.updateMany({
+                    where: { id: { in: mediaToRemove }, postId },
+                    data: { postId: null , deleted: true },
+                });
+            }
+        }
+
+        return {
+            id: postId,
+            message: 'Post updated successfully',
+        };
     }
 
     async getPosts(userId: number, currentUserId?: number): Promise<PostDto[]> {

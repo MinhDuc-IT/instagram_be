@@ -132,6 +132,9 @@ export class CloudinaryService {
     private mapUploadResponse(result: any): UploadResponseDto {
         return {
             success: true,
+            id: result.id,
+            type: result.resource_type,
+            fileName: result.original_filename,
             publicId: result.public_id,
             url: result.url,
             secureUrl: result.secure_url,
