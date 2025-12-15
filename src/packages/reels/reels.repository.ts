@@ -55,10 +55,10 @@ export class ReelsRepository {
         },
         Comment: {
           where: {
-            parentId: null, // Chỉ lấy comment gốc
+            parentId: null,
           },
           orderBy: [
-            { CommentLike: { _count: 'desc' } }, // Sắp xếp theo số lượng like
+            { CommentLike: { _count: 'desc' } },
             { createdAt: 'desc' },
           ],
           take: 3, // Top 3 comments
