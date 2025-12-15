@@ -31,7 +31,7 @@ export class AuthService {
     private readonly cacheService: CacheService,
     private readonly emailService: EmailService,
     private readonly prisma: PrismaService,
-  ) { }
+  ) {}
 
   async register(registerDto: RegisterUserDto, clientMetadata: ClientMetadata) {
     // Check if user already exists
@@ -200,6 +200,53 @@ export class AuthService {
     }
   }
 
+  async resendVerification(email: string) {
+    // Rate limiting implementation with configurable thresholds
+    const rateLimitKey = `ratelimit:verification:${email}`;
+    const rateLimitCheck = await this.cacheService.rateLimitCheck(
+      rateLimitKey,
+      3, // Request threshold
+      3600, // Time window in seconds
+    );
+
+    if (!rateLimitCheck.allowed) {
+      throw new BadRequestException(
+        `Bạn đã gửi yêu cầu quá nhiều lần. Vui lòng thử lại sau ${Math.ceil(rateLimitCheck.retryAfterSeconds / 60)} phút.`,
+      );
+    }
+
+    // User entity retrieval with minimal projection
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        email: true,
+        isVerified: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Tài khoản không tồn tại');
+    }
+
+    if (user.isVerified) {
+      return { success: true, message: 'Tài khoản đã được xác minh' };
+    }
+
+    // Token lifecycle management
+    await this.invalidateExistingVerificationTokens(user.id);
+
+    // Communication dispatch
+    await this.sendVerificationEmail(user);
+
+    this.logger.log(`Verification token regenerated for user ${user.id}`);
+
+    return {
+      success: true,
+      message: 'Verification instructions sent to your email address',
+    };
+  }
+
   async verifyAccount(token: string) {
     try {
       // Find verification record with valid token and expiration
@@ -301,7 +348,11 @@ export class AuthService {
     return user;
   }
 
-  async checkTokenLogin(userId: number, tokenLogin: string, clientMetadata: ClientMetadata) {
+  async checkTokenLogin(
+    userId: number,
+    tokenLogin: string,
+    clientMetadata: ClientMetadata,
+  ) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId, loginToken: tokenLogin },
     });
@@ -463,6 +514,21 @@ export class AuthService {
       deviceType: this.detectDeviceType(metadata.userAgent),
       ipAddress: metadata.ipAddress,
       location: await this.detectLocation(metadata.ipAddress),
+    });
+  }
+
+  private async invalidateExistingVerificationTokens(
+    userId: number,
+  ): Promise<void> {
+    await this.prisma.userVerification.updateMany({
+      where: {
+        userId,
+        isUsed: false,
+        expiresAt: { gt: new Date() },
+      },
+      data: {
+        isUsed: true,
+      },
     });
   }
 

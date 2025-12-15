@@ -1,5 +1,6 @@
 import { Processor, Process } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
+import * as fs from 'fs';
 import type { Job } from 'bull';
 import { CloudinaryService } from '../services/cloudinary.service';
 import { BackgroundJobRepository } from '../repositories/background-job.repository';
@@ -9,6 +10,7 @@ import { UPLOAD_CONSTANTS, JOB_TYPES } from '../constants/upload.constants';
 interface UploadJobData {
     jobId: string;
     fileBase64: string;
+    filePath: string;
     fileName: string;
     postId: string | null;
     type: 'image' | 'video';
@@ -42,7 +44,7 @@ export class UploadProcessor {
 
     @Process(JOB_TYPES.UPLOAD_IMAGE)
     async handleImageUpload(job: Job<UploadJobData>) {
-        const { jobId, fileBase64, fileName, postId} = job.data;
+        const { jobId, fileBase64, fileName, postId, filePath} = job.data;
 
         try {
             this.logger.log(`Processing image upload job: ${jobId}`);
@@ -50,8 +52,11 @@ export class UploadProcessor {
             await this.backgroundJobRepository.updateStatus(jobId, 'processing', 10);
             await job.progress(10);
 
-            const fileBuffer = Buffer.from(fileBase64, 'base64');
-            const result = await this.cloudinaryService.uploadImage(fileBuffer, fileName);
+            // const fileBuffer = Buffer.from(fileBase64, 'base64');
+            // const result = await this.cloudinaryService.uploadImage(fileBuffer, fileName);
+            const buffer = fs.readFileSync(filePath);
+            const result = await this.cloudinaryService.uploadImage(buffer, fileName);
+            fs.unlinkSync(filePath);
 
             await job.progress(70);
             await this.backgroundJobRepository.updateStatus(jobId, 'processing', 70);
@@ -80,7 +85,7 @@ export class UploadProcessor {
 
     @Process(JOB_TYPES.UPLOAD_VIDEO)
     async handleVideoUpload(job: Job<UploadJobData>) {
-        const { jobId, fileBase64, fileName, postId } = job.data;
+        const { jobId, fileBase64, fileName, postId, filePath } = job.data;
 
         try {
             this.logger.log(`Processing video upload job: ${jobId}`);
@@ -88,8 +93,11 @@ export class UploadProcessor {
             await this.backgroundJobRepository.updateStatus(jobId, 'processing', 10);
             await job.progress(10);
 
-            const fileBuffer = Buffer.from(fileBase64, 'base64');
-            const result = await this.cloudinaryService.uploadVideo(fileBuffer, fileName);
+            // const fileBuffer = Buffer.from(fileBase64, 'base64');
+            // const result = await this.cloudinaryService.uploadVideo(fileBuffer, fileName);
+            const buffer = fs.readFileSync(filePath);
+            const result = await this.cloudinaryService.uploadVideo(buffer, fileName);
+            fs.unlinkSync(filePath);
 
             await job.progress(70);
             await this.backgroundJobRepository.updateStatus(jobId, 'processing', 70);
