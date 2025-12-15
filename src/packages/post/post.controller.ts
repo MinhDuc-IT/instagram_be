@@ -33,6 +33,7 @@ import { TransformResponseDto, ResponseMessage } from 'src/core/decorators/respo
 import { PostDto } from './dto/get-post.dto';
 import { PostLikeToggleResponse, PostSaveToggleResponse } from './dto/post-interaction.dto';
 import { CommentDto, CreateCommentRequest, GetCommentsResponse } from './dto/comment.dto';
+import { EditPostDto } from './dto/edit-post.dto';
 
 @ApiTags('Post')
 @Controller('post')
@@ -118,6 +119,18 @@ export class PostController {
         const post = await this.postService.getPostById(id, currentUserId);
         if (!post) throw new NotFoundException('Post not found');
         return post;
+    }
+
+    @Patch(':id')
+    @ApiOperation({ summary: 'Chỉnh sửa thông tin bài viết' })
+    async editPost(
+        @Param('id') id: string,
+        @Body() dto: EditPostDto,
+        @Req() req: any
+    ) {
+        const currentUserId = req.user?.id;
+
+        return this.postService.editPost(id, currentUserId, dto);
     }
 
     @Get('user/:userId')

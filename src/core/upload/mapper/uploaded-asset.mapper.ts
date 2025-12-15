@@ -7,6 +7,9 @@ export class UploadedAssetMapper {
 
         return {
             success: true,
+            id: entity.id,
+            type: entity.type,
+            fileName: entity.fileName,
             publicId: entity.publicId,
             url: entity.url,
             secureUrl: entity.secureUrl,

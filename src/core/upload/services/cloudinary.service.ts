@@ -3,6 +3,7 @@ import { UploadResponseDto } from '../dto/upload-response.dto';
 import { TransformService } from './transform.service';
 import { UPLOAD_CONSTANTS } from '../constants/upload.constants';
 import { UploadException } from '../exceptions/upload.exception';
+import { createReadStream } from 'fs';
 
 @Injectable()
 export class CloudinaryService {
@@ -14,13 +15,13 @@ export class CloudinaryService {
     ) { }
 
     async uploadImage(
-        fileBuffer: Buffer,
+        filePath: string,
         fileName: string,
         folder: string = UPLOAD_CONSTANTS.IMAGE_FOLDER,
     ): Promise<UploadResponseDto> {
         try {
             return await this.uploadToCloudinary(
-                fileBuffer,
+                filePath,
                 fileName,
                 folder,
                 'image',
@@ -32,20 +33,22 @@ export class CloudinaryService {
     }
 
     async uploadVideo(
-        fileBuffer: Buffer,
+        filePath: string,
         fileName: string,
         folder: string = UPLOAD_CONSTANTS.VIDEO_FOLDER,
     ): Promise<UploadResponseDto> {
         try {
             return await this.uploadToCloudinary(
-                fileBuffer,
+                filePath,
                 fileName,
                 folder,
                 'video',
             );
         } catch (error) {
             this.logger.error(`Upload video error: ${fileName}`, error);
-            throw new UploadException(`Failed to upload video: ${error.message}`);
+            throw new UploadException(
+                `Failed to upload video: ${error.message}`,
+            );
         }
     }
 
@@ -64,20 +67,27 @@ export class CloudinaryService {
     }
 
     private async uploadToCloudinary(
-        fileBuffer: Buffer,
+        filePath: string,
         fileName: string,
         folder: string,
         type: 'image' | 'video',
     ): Promise<UploadResponseDto> {
         return new Promise((resolve, reject) => {
+            const isVideo = type === 'video';
+
             const options: any = {
                 folder,
+                resource_type: isVideo ? 'video' : 'image',
                 public_id: this.generatePublicId(fileName),
-                resource_type: type === 'video' ? 'video' : 'auto',
-                tags: ['upload', type, `original-${fileName}`],
+                eager_async: true,
             };
 
-            if (type === 'image') {
+            // Nếu là video → thêm chunk_size (Cloudinary yêu cầu cho video lớn)
+            if (isVideo) {
+                options.chunk_size = 6 * 1024 * 1024; // 6MB
+            }
+
+            if (!isVideo) {
                 options.eager = [
                     {
                         width: 1200,
@@ -87,8 +97,10 @@ export class CloudinaryService {
                         fetch_format: 'auto',
                     },
                 ];
-                options.eager_async = true;
-            } else {
+            }
+
+            // Nếu bạn vẫn muốn xử lý video → optional
+            if (isVideo) {
                 options.eager = [
                     {
                         video_codec: 'h264',
@@ -100,27 +112,29 @@ export class CloudinaryService {
                         quality: 'auto',
                     },
                 ];
-                options.eager_async = true;
             }
 
+            // Tạo upload stream
             const uploadStream = this.cloudinary.uploader.upload_stream(
                 options,
-                (error: any, result: any) => {
-                    if (error) {
-                        reject(error);
-                    } else {
-                        resolve(this.mapUploadResponse(result));
-                    }
+                (error, result) => {
+                    if (error) reject(error);
+                    else resolve(this.mapUploadResponse(result));
                 },
             );
 
-            uploadStream.end(fileBuffer);
+            // Stream trực tiếp vào Cloudinary
+            createReadStream(filePath).pipe(uploadStream);
         });
     }
+
 
     private mapUploadResponse(result: any): UploadResponseDto {
         return {
             success: true,
+            id: result.id,
+            type: result.resource_type,
+            fileName: result.original_filename,
             publicId: result.public_id,
             url: result.url,
             secureUrl: result.secure_url,

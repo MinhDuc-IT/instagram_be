@@ -84,6 +84,12 @@ export class PostDto {
   visibility?: string | null;
 
   @Expose()
+  isLikesHidden?: boolean | null;
+
+  @Expose()
+  isCommentsDisabled?: boolean | null;
+
+  @Expose()
   media: MediaDto[];
 
   @Expose()
