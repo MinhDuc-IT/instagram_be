@@ -133,10 +133,10 @@ export class ReelDto {
   @ApiProperty()
   savesCount: number;
 
-  @Expose()
-  @ApiProperty({ type: [ReelCommentDto] })
-  @Type(() => ReelCommentDto)
-  topComments: ReelCommentDto[];
+  // @Expose()
+  // @ApiProperty({ type: [ReelCommentDto] })
+  // @Type(() => ReelCommentDto)
+  // topComments: ReelCommentDto[];
 
   @Expose()
   @ApiProperty()

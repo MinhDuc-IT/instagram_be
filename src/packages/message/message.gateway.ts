@@ -116,6 +116,98 @@ export class MessageGateway
   }
 
   /**
+   * Tham gia vào phòng bài đăng
+   */
+  @SubscribeMessage('join_post')
+  async handleJoinPost(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { postId: string },
+  ) {
+    if (!client.userId) {
+      return { error: 'Unauthorized' };
+    }
+
+    const room = `post:${data.postId}`;
+    await client.join(room);
+    this.logger.log(`User ${client.userId} joined post ${data.postId}`);
+    return { success: true, postId: data.postId };
+  }
+
+  /**
+   * Rời khỏi phòng bài đăng
+   */
+  @SubscribeMessage('leave_post')
+  async handleLeavePost(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { postId: string },
+  ) {
+    if (!client.userId) {
+      return { error: 'Unauthorized' };
+    }
+
+    const room = `post:${data.postId}`;
+    await client.leave(room);
+    this.logger.log(`User ${client.userId} left post ${data.postId}`);
+    return { success: true, postId: data.postId };
+  }
+
+  /**
+   * Broadcast comment mới tới tất cả users trong room
+   */
+  @SubscribeMessage('new_comment')
+  async handleNewComment(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { postId: string; comment: any },
+  ) {
+    if (!client.userId) {
+      return { error: 'Unauthorized' };
+    }
+
+    const room = `post:${data.postId}`;
+
+    // Broadcast comment mới tới tất cả users trong room này
+    // (gồm cả user vừa comment)
+    this.server.to(room).emit('comment_added', {
+      postId: data.postId,
+      comment: data.comment,
+      timestamp: new Date(),
+    });
+
+    this.logger.log(
+      `New comment on post ${data.postId} from user ${client.userId}`,
+    );
+
+    return { success: true };
+  }
+
+  /**
+   * Lắng nghe khi user xóa comment
+   */
+  @SubscribeMessage('delete_comment')
+  async handleDeleteComment(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { postId: string; commentId: string },
+  ) {
+    if (!client.userId) {
+      return { error: 'Unauthorized' };
+    }
+
+    const room = `post:${data.postId}`;
+
+    this.server.to(room).emit('comment_deleted', {
+      postId: data.postId,
+      commentId: data.commentId,
+      timestamp: new Date(),
+    });
+
+    this.logger.log(
+      `Comment ${data.commentId} deleted from post ${data.postId}`,
+    );
+
+    return { success: true };
+  }
+
+  /**
    * Rời khỏi phòng cuộc hội thoại
    */
   @SubscribeMessage('leave_conversation')

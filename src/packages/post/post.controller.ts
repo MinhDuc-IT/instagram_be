@@ -209,17 +209,37 @@ export class PostController {
 
     @Get(':postId/comments')
     @HttpCode(HttpStatus.OK)
-    @ApiOperation({ summary: 'Lấy danh sách comment của bài viết' })
-    @ApiResponse({ status: 200, description: 'Comments retrieved' })
+    @ApiOperation({ 
+        summary: 'Lấy danh sách comment của bài viết (với cursor-based pagination)',
+        description: 'Lấy comments có thể load thêm bằng cursor. Trả về cả replies (3 replies đầu tiên của mỗi comment)'
+    })
+    @ApiResponse({ 
+        status: 200, 
+        description: 'Comments retrieved successfully',
+        type: GetCommentsResponse,
+    })
     @ApiResponse({ status: 404, description: 'Post not found' })
     @TransformResponseDto(GetCommentsResponse)
     @ResponseMessage('Comments retrieved')
     async getComments(
         @Param('postId') postId: string,
-        @Query('page', new ParseIntPipe({ optional: true })) page?: number,
-        @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+        @Query('limit') limit?: string,
+        @Query('cursor') cursor?: string,
+        @Req() req?: any,
     ) {
-        return await this.commentService.getComments(postId, page || 1, limit || 20);
+        const userId = req?.user?.id;
+        const parsedLimit = limit ? parseInt(limit, 10) : 20;
+        
+        if (isNaN(parsedLimit) || parsedLimit <= 0) {
+            throw new BadRequestException('Invalid limit value');
+        }
+
+        return await this.commentService.getComments(
+            postId,
+            parsedLimit,
+            cursor,
+            userId,
+        );
     }
 
     @Patch(':postId/comments/:commentId')
@@ -260,5 +280,62 @@ export class PostController {
         const userId = req.user?.id;
         if (!userId) throw new BadRequestException('User not found in token');
         return await this.commentService.deleteComment(postId, commentId, userId);
+    }
+
+    @Get(':postId/comments/:commentId/thread')
+    @Public()
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({
+        summary: 'Lấy toàn bộ cây replies của một comment gốc',
+        description: 'Trả về danh sách phẳng các comment trong thread, có parentId và replyToUser để FE dựng cây như Instagram',
+    })
+    @ApiResponse({ status: 200, description: 'Comment thread retrieved', type: GetCommentsResponse })
+    @ApiResponse({ status: 404, description: 'Comment not found' })
+    @TransformResponseDto(GetCommentsResponse)
+    @ResponseMessage('Comment thread retrieved')
+    async getCommentThread(
+        @Param('postId') postId: string,
+        @Param('commentId', ParseIntPipe) commentId: number,
+        @Req() req?: any,
+    ) {
+        const userId = req?.user?.id;
+        return this.commentService.getCommentThread(postId, commentId, userId);
+    }
+
+    @Get(':postId/comments/:commentId/replies')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ 
+        summary: 'Lấy replies của một comment (với cursor-based pagination)',
+        description: 'Load thêm replies khi user click "View more replies"'
+    })
+    @ApiResponse({ 
+        status: 200, 
+        description: 'Replies retrieved successfully',
+        type: GetCommentsResponse,
+    })
+    @ApiResponse({ status: 404, description: 'Comment not found' })
+    @TransformResponseDto(GetCommentsResponse)
+    @ResponseMessage('Replies retrieved')
+    async getReplies(
+        @Param('postId') postId: string,
+        @Param('commentId', ParseIntPipe) commentId: number,
+        @Query('limit') limit?: string,
+        @Query('cursor') cursor?: string,
+        @Req() req?: any,
+    ) {
+        const userId = req?.user?.id;
+        const parsedLimit = limit ? parseInt(limit, 10) : 20;
+        
+        if (isNaN(parsedLimit) || parsedLimit <= 0) {
+            throw new BadRequestException('Invalid limit value');
+        }
+
+        return await this.commentService.getReplies(
+            postId,
+            commentId,
+            parsedLimit,
+            cursor,
+            userId,
+        );
     }
 }
