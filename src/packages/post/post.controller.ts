@@ -17,7 +17,7 @@ import {
     Query,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { ApiBody, ApiConsumes, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiConsumes, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
 import { CreatePostDto } from './dto/create-post.dto';
 import { PostService } from './post.service';
@@ -32,7 +32,7 @@ import { UseGuards } from '@nestjs/common';
 import { TransformResponseDto, ResponseMessage } from 'src/core/decorators/response.decorator';
 import { PostDto } from './dto/get-post.dto';
 import { PostLikeToggleResponse, PostSaveToggleResponse } from './dto/post-interaction.dto';
-import { CommentDto, CreateCommentRequest, GetCommentsResponse } from './dto/comment.dto';
+import { CommentDto, CommentLikeToggleResponse, CreateCommentRequest, GetCommentsResponse } from './dto/comment.dto';
 import { EditPostDto } from './dto/edit-post.dto';
 
 @ApiTags('Post')
@@ -209,10 +209,14 @@ export class PostController {
 
     @Get(':postId/comments')
     @HttpCode(HttpStatus.OK)
+    // @Public()
     @ApiOperation({ 
         summary: 'Lấy danh sách comment của bài viết (với cursor-based pagination)',
         description: 'Lấy comments có thể load thêm bằng cursor. Trả về cả replies (3 replies đầu tiên của mỗi comment)'
     })
+    
+    @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Số comment trả về mỗi trang (mặc định 20)' })
+    @ApiQuery({ name: 'cursor', required: false, type: String, description: 'ID comment cuối cùng của trang trước' })
     @ApiResponse({ 
         status: 200, 
         description: 'Comments retrieved successfully',
@@ -240,6 +244,26 @@ export class PostController {
             cursor,
             userId,
         );
+    }
+
+    @Post(':postId/comments/:commentId/like')
+    @UseGuards(JwtAuthGuard)
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Toggle like trên comment' })
+    @ApiResponse({ status: 200, description: 'Comment like toggled', type: CommentLikeToggleResponse })
+    @ApiResponse({ status: 404, description: 'Comment not found' })
+    @ApiResponse({ status: 400, description: 'Comment does not belong to this post' })
+    @ApiResponse({ status: 401, description: 'Unauthorized' })
+    @TransformResponseDto(CommentLikeToggleResponse)
+    @ResponseMessage('Comment like toggled')
+    async toggleCommentLike(
+        @Param('postId') postId: string,
+        @Param('commentId', ParseIntPipe) commentId: number,
+        @Req() req: any,
+    ) {
+        const userId = req.user?.id;
+        if (!userId) throw new BadRequestException('User not found in token');
+        return await this.commentService.toggleCommentLike(postId, commentId, userId);
     }
 
     @Patch(':postId/comments/:commentId')
@@ -303,11 +327,14 @@ export class PostController {
     }
 
     @Get(':postId/comments/:commentId/replies')
+    // @Public()
     @HttpCode(HttpStatus.OK)
     @ApiOperation({ 
         summary: 'Lấy replies của một comment (với cursor-based pagination)',
         description: 'Load thêm replies khi user click "View more replies"'
     })
+    @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Số comment trả về mỗi trang (mặc định 20)' })
+    @ApiQuery({ name: 'cursor', required: false, type: String, description: 'ID comment cuối cùng của trang trước' })
     @ApiResponse({ 
         status: 200, 
         description: 'Replies retrieved successfully',
@@ -330,12 +357,12 @@ export class PostController {
             throw new BadRequestException('Invalid limit value');
         }
 
-        return await this.commentService.getReplies(
-            postId,
-            commentId,
-            parsedLimit,
-            cursor,
-            userId,
+        return await this.commentService.getCommentThreadPaginated(
+          postId,
+          commentId,
+          parsedLimit,
+          cursor,
+          userId,
         );
     }
 }

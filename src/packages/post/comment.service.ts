@@ -32,33 +32,75 @@ export class CommentService {
       );
     }
 
-    // Validate replyTo if provided
+    // Validate replyTo if provided and derive rootId when replying
     let parentId: number | null = null;
+    let rootCommentId: number | null = null;
+
     if (dto.replyToCommentId) {
       const parentComment = await this.prisma.comment.findUnique({
         where: { id: parseInt(dto.replyToCommentId, 10) },
+        select: { id: true, rootId: true },
       });
       if (!parentComment) {
         throw new BadRequestException('Reply-to comment not found');
       }
       parentId = parentComment.id;
+      rootCommentId = parentComment.rootId;
     }
 
-    const comment = await this.prisma.comment.create({
-      data: {
-        userId,
-        postId,
-        content: dto.text,
-        rootId: 1, // temporary, will update below
-        parentId,
-        updatedAt: new Date(),
-      },
-      include: {
-        User: { select: { id: true, userName: true, avatar: true } },
-      },
-    });
+    // If FE provides explicit rootCommentId, validate and use it
+    if (!rootCommentId && dto.rootCommentId) {
+      const root = await this.prisma.comment.findUnique({
+        where: { id: parseInt(dto.rootCommentId, 10) },
+        select: { id: true },
+      });
+      if (!root) {
+        throw new BadRequestException('Root comment not found');
+      }
+      rootCommentId = root.id;
+    }
 
-    return this.mapCommentToDto(comment);
+    // Create comment. If it's a root comment (no rootId yet), set rootId to its own id in a transaction
+    let createdComment: any;
+    if (rootCommentId && rootCommentId > 0) {
+      createdComment = await this.prisma.comment.create({
+        data: {
+          userId,
+          postId,
+          content: dto.text,
+          rootId: rootCommentId,
+          parentId,
+          updatedAt: new Date(),
+        },
+        include: {
+          User: { select: { id: true, userName: true, avatar: true } },
+        },
+      });
+    } else {
+      // Root comment: create then update rootId = new id
+      createdComment = await this.prisma.$transaction(async (tx) => {
+        const c = await tx.comment.create({
+          data: {
+            userId,
+            postId,
+            content: dto.text,
+            rootId: 0, // placeholder, will be updated to self id
+            parentId: null,
+            updatedAt: new Date(),
+          },
+        });
+        const updated = await tx.comment.update({
+          where: { id: c.id },
+          data: { rootId: c.id },
+          include: {
+            User: { select: { id: true, userName: true, avatar: true } },
+          },
+        });
+        return updated;
+      });
+    }
+
+    return this.mapCommentToDto(createdComment);
   }
 
   async getComments(
@@ -104,44 +146,44 @@ export class CommentService {
               select: { id: true },
             }
           : false,
-        other_Comment: {
-          take: 3, // Lấy 3 replies đầu tiên
-          orderBy: { createdAt: 'asc' },
-          include: {
-            User: {
-              select: {
-                id: true,
-                userName: true,
-                avatar: true,
-              },
-            },
-            Comment: {
-              // parent comment
-              select: {
-                id: true,
-                User: {
-                  select: {
-                    id: true,
-                    userName: true,
-                    avatar: true,
-                  },
-                },
-              },
-            },
-            CommentLike: userId
-              ? {
-                  where: { actorId: userId },
-                  select: { id: true },
-                }
-              : false,
-            _count: {
-              select: {
-                CommentLike: true,
-                other_Comment: true,
-              },
-            },
-          },
-        },
+        // other_Comment: {
+        //   take: 3, // Lấy 3 replies đầu tiên
+        //   orderBy: { createdAt: 'asc' },
+        //   include: {
+        //     User: {
+        //       select: {
+        //         id: true,
+        //         userName: true,
+        //         avatar: true,
+        //       },
+        //     },
+        //     Comment: {
+        //       // parent comment
+        //       select: {
+        //         id: true,
+        //         User: {
+        //           select: {
+        //             id: true,
+        //             userName: true,
+        //             avatar: true,
+        //           },
+        //         },
+        //       },
+        //     },
+        //     CommentLike: userId
+        //       ? {
+        //           where: { actorId: userId },
+        //           select: { id: true },
+        //         }
+        //       : false,
+        //     _count: {
+        //       select: {
+        //         CommentLike: true,
+        //         other_Comment: true,
+        //       },
+        //     },
+        //   },
+        // },
         _count: {
           select: {
             CommentLike: true,
@@ -155,50 +197,105 @@ export class CommentService {
     const data = hasMore ? comments.slice(0, limit) : comments;
     const nextCursor = hasMore ? data[data.length - 1].id.toString() : null;
 
-    return {
-      comments: data.map((comment) => ({
-        id: comment.id,
-        postId: comment.postId,
-        userId: comment.userId,
-        username: comment.User.userName,
-        userAvatar: comment.User.avatar ?? undefined,
-        text: comment.content,
-        replyTo: comment.parentId,
-        replyToCommentId: comment.parentId,
-        replyToUser: null,
-        rootCommentId: comment.id,
-        createdAt: comment.createdAt.toISOString(),
-        updatedAt: comment.updatedAt.toISOString(),
-        likesCount: comment._count.CommentLike,
-        repliesCount: comment._count.other_Comment,
-        isLiked: userId ? (comment.CommentLike as any[]).length > 0 : undefined,
-        replies: comment.other_Comment.map((reply) => ({
-          id: reply.id,
-          postId: reply.postId,
-          userId: reply.userId,
-          username: reply.User.userName,
-          userAvatar: reply.User.avatar ?? undefined,
-          text: reply.content,
-          replyTo: reply.parentId,
-          replyToCommentId: reply.parentId,
-          replyToUser: reply.Comment
-            ? {
-                id: reply.Comment.User.id,
-                userName: reply.Comment.User.userName,
-                avatar: reply.Comment.User.avatar ?? undefined,
-              }
-            : null,
+    // Đếm tất cả replies (nested) của mỗi comment theo rootId
+    const commentDtos = await Promise.all(
+      data.map(async (comment) => {
+        const repliesCount = await this.prisma.comment.count({
+          where: {
+            postId,
+            rootId: comment.id,
+            id: { not: comment.id }, // Không tính chính comment đó
+          },
+        });
+
+        return {
+          id: comment.id,
+          postId: comment.postId,
+          userId: comment.userId,
+          username: comment.User.userName,
+          userAvatar: comment.User.avatar ?? undefined,
+          text: comment.content,
+          replyTo: comment.parentId,
+          replyToCommentId: comment.parentId,
+          replyToUser: null,
           rootCommentId: comment.id,
-          createdAt: reply.createdAt.toISOString(),
-          updatedAt: reply.updatedAt.toISOString(),
-          likesCount: reply._count.CommentLike,
-          repliesCount: reply._count.other_Comment,
-          isLiked: userId ? (reply.CommentLike as any[]).length > 0 : undefined,
-        })),
-      })),
+          createdAt: comment.createdAt.toISOString(),
+          updatedAt: comment.updatedAt.toISOString(),
+          likesCount: comment._count.CommentLike,
+          repliesCount, // Tất cả nested replies
+          isLiked: userId
+            ? (comment.CommentLike as any[]).length > 0
+            : undefined,
+        };
+      }),
+    );
+
+    // Sắp xếp: comments của tác giả bài viết ở trên (chỉ root comments, không phải replies)
+    commentDtos.sort((a, b) => {
+      const aIsAuthorAndRoot =
+        a.userId === post.userId && a.replyTo === null ? 0 : 1;
+      const bIsAuthorAndRoot =
+        b.userId === post.userId && b.replyTo === null ? 0 : 1;
+      return aIsAuthorAndRoot - bIsAuthorAndRoot;
+    });
+
+    return {
+      comments: commentDtos,
       nextCursor,
       hasMore,
       total,
+    };
+  }
+
+  async toggleCommentLike(postId: string, commentId: number, userId: number) {
+    const comment = await this.prisma.comment.findUnique({
+      where: { id: commentId },
+      select: { id: true, postId: true },
+    });
+
+    if (!comment) {
+      throw new NotFoundException('Comment not found');
+    }
+
+    if (comment.postId !== postId) {
+      throw new BadRequestException('Comment does not belong to this post');
+    }
+
+    // Dùng deleteMany + create để tránh race condition với unique constraint
+    const deleted = await this.prisma.commentLike.deleteMany({
+      where: { actorId: userId, commentId },
+    });
+
+    let isLiked = false;
+
+    // Nếu xóa được (đã có like) thì isLiked = false
+    // Nếu không xóa được gì (chưa có like) thì tạo mới
+    if (deleted.count === 0) {
+      try {
+        await this.prisma.commentLike.create({
+          data: { actorId: userId, commentId },
+        });
+        isLiked = true;
+      } catch (error) {
+        // Nếu duplicate do race condition, coi như đã like rồi
+        if (error.code === 'P2002') {
+          isLiked = true;
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    const likesCount = await this.prisma.commentLike.count({
+      where: { commentId },
+    });
+
+    return {
+      commentId,
+      postId: comment.postId,
+      userId,
+      isLiked,
+      likesCount,
     };
   }
 
@@ -394,28 +491,22 @@ export class CommentService {
       throw new NotFoundException('Comment not found');
     }
 
-    // parse cursor
-    let cursorCondition = {};
-    if (cursor) {
-      const [createdAt, id] = cursor.split('_');
-      cursorCondition = {
-        OR: [
-          { createdAt: { gt: new Date(createdAt) } },
-          {
-            createdAt: new Date(createdAt),
-            id: { gt: Number(id) },
-          },
-        ],
-      };
-    }
+    // total comments in this thread
+    const total = await this.prisma.comment.count({
+      where: { postId, rootId: rootCommentId, id: { not: rootCommentId } },
+    });
 
     const comments = await this.prisma.comment.findMany({
       where: {
         postId,
         rootId: rootCommentId,
-        ...cursorCondition,
+        id: { not: rootCommentId },
       },
       take: limit + 1,
+      ...(cursor && {
+        skip: 1,
+        cursor: { id: parseInt(cursor, 10) },
+      }),
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       include: {
         User: {
@@ -441,9 +532,7 @@ export class CommentService {
     const hasMore = comments.length > limit;
     const data = hasMore ? comments.slice(0, limit) : comments;
 
-    const nextCursor = hasMore
-      ? `${data[data.length - 1].createdAt.toISOString()}_${data[data.length - 1].id}`
-      : null;
+    const nextCursor = hasMore ? data[data.length - 1].id.toString() : null;
 
     return {
       comments: data.map((c) => ({
@@ -453,8 +542,8 @@ export class CommentService {
         username: c.User.userName,
         userAvatar: c.User.avatar ?? undefined,
         text: c.content,
-        parentId: c.parentId,
-        rootCommentId: c.rootId,
+        replyTo: c.parentId,
+        replyToCommentId: c.parentId,
         replyToUser: c.Comment
           ? {
               id: c.Comment.User.id,
@@ -462,13 +551,16 @@ export class CommentService {
               avatar: c.Comment.User.avatar ?? undefined,
             }
           : null,
+        rootCommentId: c.rootId,
         createdAt: c.createdAt.toISOString(),
         updatedAt: c.updatedAt.toISOString(),
         likesCount: c._count.CommentLike,
-        isLiked: userId ? c.CommentLike.length > 0 : undefined,
+        repliesCount: 0,
+        isLiked: userId ? (c.CommentLike as any[]).length > 0 : undefined,
       })),
-      hasMore,
       nextCursor,
+      hasMore,
+      total,
     };
   }
 

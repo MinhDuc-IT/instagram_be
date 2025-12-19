@@ -5,6 +5,7 @@ import { IsOptional, IsNumberString } from 'class-validator';
 export class CreateCommentRequest {
   text: string;
   replyToCommentId?: string;
+  rootCommentId: string;
 }
 
 export class CommentUserDto {
@@ -124,4 +125,26 @@ export class GetCommentsResponse {
   @Expose()
   @ApiProperty()
   total: number;
+}
+
+export class CommentLikeToggleResponse {
+  @Expose()
+  @ApiProperty()
+  commentId: number;
+
+  @Expose()
+  @ApiProperty()
+  postId: string;
+
+  @Expose()
+  @ApiProperty()
+  userId: number;
+
+  @Expose()
+  @ApiProperty()
+  isLiked: boolean;
+
+  @Expose()
+  @ApiProperty()
+  likesCount: number;
 }
