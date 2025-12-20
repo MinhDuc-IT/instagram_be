@@ -10,14 +10,27 @@ import { cloudinaryProvider } from '../../config/cloudinary.config';
 import { TransformService } from '../../core/upload/services/transform.service';
 import { BackgroundJobRepository } from '../../core/upload/repositories/background-job.repository';
 import { CommentService } from './comment.service';
+import { MessageGateway } from '../message/message.gateway';
+import { JwtModule } from '@nestjs/jwt';
 
 @Module({
-    imports: [
-        BullModule.registerQueue({
-            name: UPLOAD_CONSTANTS.QUEUE_NAME,
-        }),
-    ],
-    controllers: [PostController],
-    providers: [PostService, PrismaService, UploadAssetService, CloudinaryService, cloudinaryProvider, TransformService, BackgroundJobRepository, CommentService],
+  imports: [
+    BullModule.registerQueue({
+      name: UPLOAD_CONSTANTS.QUEUE_NAME,
+    }),
+    JwtModule.register({}),
+  ],
+  controllers: [PostController],
+  providers: [
+    PostService,
+    PrismaService,
+    UploadAssetService,
+    CloudinaryService,
+    cloudinaryProvider,
+    TransformService,
+    BackgroundJobRepository,
+    CommentService,
+    MessageGateway,
+  ],
 })
-export class PostModule { }
+export class PostModule {}

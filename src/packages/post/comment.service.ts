@@ -3,13 +3,21 @@ import {
   BadRequestException,
   NotFoundException,
   ForbiddenException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { PrismaService } from '../../core/prisma/prisma.service';
 import { CreateCommentRequest, CommentDto } from './dto/comment.dto';
+import { MessageGateway } from '../message/message.gateway';
+import { Const } from '../../common/Constants';
 
 @Injectable()
 export class CommentService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(forwardRef(() => MessageGateway))
+    private readonly messageGateway: MessageGateway,
+  ) {}
 
   async createComment(
     postId: string,
@@ -26,26 +34,32 @@ export class CommentService {
     if (!dto.text || dto.text.trim().length === 0) {
       throw new BadRequestException('Comment text is required');
     }
-    if (dto.text.length > 1000) {
+    if (dto.text.length > Const.MAX_COMMENT_LENGTH) {
       throw new BadRequestException(
-        'Comment text cannot exceed 1000 characters',
+        `Comment text cannot exceed ${Const.MAX_COMMENT_LENGTH} characters`,
       );
     }
 
     // Validate replyTo if provided and derive rootId when replying
     let parentId: number | null = null;
     let rootCommentId: number | null = null;
+    let replyToUser: any = null;
 
     if (dto.replyToCommentId) {
       const parentComment = await this.prisma.comment.findUnique({
         where: { id: parseInt(dto.replyToCommentId, 10) },
-        select: { id: true, rootId: true },
+        select: {
+          id: true,
+          rootId: true,
+          User: { select: { id: true, userName: true, avatar: true } },
+        },
       });
       if (!parentComment) {
         throw new BadRequestException('Reply-to comment not found');
       }
       parentId = parentComment.id;
       rootCommentId = parentComment.rootId;
+      replyToUser = parentComment.User;
     }
 
     // If FE provides explicit rootCommentId, validate and use it
@@ -100,7 +114,15 @@ export class CommentService {
       });
     }
 
-    return this.mapCommentToDto(createdComment);
+    const commentDto = this.mapCommentToDto(
+      createdComment,
+      rootCommentId ?? createdComment.rootId ?? createdComment.id,
+      replyToUser,
+    );
+
+    this.messageGateway.handleNewCommentBroadcast(postId, commentDto, userId);
+
+    return commentDto;
   }
 
   async getComments(
@@ -309,9 +331,9 @@ export class CommentService {
     if (!text || text.trim().length === 0) {
       throw new BadRequestException('Comment text is required');
     }
-    if (text.length > 1000) {
+    if (text.length > Const.MAX_COMMENT_LENGTH) {
       throw new BadRequestException(
-        'Comment text cannot exceed 1000 characters',
+        `Comment text cannot exceed ${Const.MAX_COMMENT_LENGTH} characters`,
       );
     }
 
@@ -339,7 +361,7 @@ export class CommentService {
       include: { User: { select: { id: true, userName: true, avatar: true } } },
     });
 
-    return this.mapCommentToDto(updated);
+    return this.mapCommentToDto(updated, updated.rootId ?? updated.id, null);
   }
 
   async deleteComment(postId: string, commentId: number, userId: number) {
@@ -564,7 +586,11 @@ export class CommentService {
     };
   }
 
-  private mapCommentToDto(comment: any) {
+  private mapCommentToDto(
+    comment: any,
+    rootCommentId?: number,
+    replyToUser?: any,
+  ) {
     return {
       id: comment.id,
       postId: comment.postId,
@@ -573,8 +599,20 @@ export class CommentService {
       userAvatar: comment.User?.avatar || '',
       text: comment.content,
       replyTo: comment.parentId,
+      replyToCommentId: comment.parentId,
+      replyToUser: replyToUser
+        ? {
+            id: replyToUser.id,
+            userName: replyToUser.userName,
+            avatar: replyToUser.avatar ?? undefined,
+          }
+        : null,
+      rootCommentId: rootCommentId ?? comment.rootId ?? comment.id,
       createdAt: comment.createdAt.toISOString(),
       updatedAt: comment.updatedAt.toISOString(),
+      likesCount: comment._count?.CommentLike ?? 0,
+      repliesCount: comment._count?.other_Comment ?? 0,
+      isLiked: undefined,
     };
   }
 
