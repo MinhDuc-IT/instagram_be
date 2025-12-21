@@ -34,6 +34,7 @@ import { PostDto } from './dto/get-post.dto';
 import { PostLikeToggleResponse, PostSaveToggleResponse } from './dto/post-interaction.dto';
 import { CommentDto, CreateCommentRequest, GetCommentsResponse } from './dto/comment.dto';
 import { EditPostDto } from './dto/edit-post.dto';
+import { GetHomeFeedDto } from './dto/get-home-feed.dto';
 
 @ApiTags('Post')
 @Controller('post')
@@ -260,5 +261,17 @@ export class PostController {
         const userId = req.user?.id;
         if (!userId) throw new BadRequestException('User not found in token');
         return await this.commentService.deleteComment(postId, commentId, userId);
+    }
+
+    @Get('home')
+    async getHomeFeed(
+        @Req() req,
+        @Query() query: GetHomeFeedDto
+    ) {
+        return this.postService.getHomeFeed(
+            req.user.id,
+            query.page,
+            query.limit
+        );
     }
 }

@@ -154,7 +154,8 @@ model UploadedAsset {
   deletedBy    String?   @db.VarChar(255)
   postId       String?
   Post         Post?     @relation(fields: [postId], references: [id], onDelete: Cascade)
-
+  storyId      Int?
+  Story        Story?    @relation(fields: [storyId], references: [id], onDelete: Cascade)
   @@index([publicId])
   @@index([createdDate])
   @@index([type])
@@ -339,6 +340,7 @@ model Story {
   User      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   StoryLike StoryLike[]
   StoryView StoryView[]
+  Assets    UploadedAsset[]
 
   @@index([userId])
 }

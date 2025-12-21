@@ -20,6 +20,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
+import { PostRepository } from './post.repository';
 
 @Injectable()
 export class PostService {
@@ -31,6 +32,7 @@ export class PostService {
         private readonly uploadAssetService: UploadAssetService,
         private readonly backgroundJobRepository: BackgroundJobRepository,
         private readonly cacheService: CacheService,
+        private readonly postRepository: PostRepository,
         @InjectQueue(UPLOAD_CONSTANTS.QUEUE_NAME) private readonly uploadQueue: Queue,
     ) { }
 
@@ -424,5 +426,36 @@ export class PostService {
         const isSaved = !existingSave;
 
         return { postId, userId, isSaved, savesCount };
+    }
+
+    async getHomeFeed(
+        userId: number,
+        page: number = 1,
+        limit: number = 10
+    ) {
+        const posts = await this.postRepository.getHomeFeed(
+            userId,
+            (page - 1) * limit,
+            limit
+        );
+
+        return posts.map(p => ({
+            id: p.id,
+            caption: p.caption,
+            location: p.location,
+            visibility: p.visibility,
+            createdDate: p.createdDate,
+
+            user: p.User,
+            assets: p.UploadedAsset,
+
+            // Like
+            isLiked: p.PostLike.length > 0,
+            likeCount: p.isLikesHidden ? null : p._count.PostLike,
+
+            // Comment
+            commentCount: p._count.Comment,
+            isCommentsDisabled: p.isCommentsDisabled
+        }));
     }
 }
