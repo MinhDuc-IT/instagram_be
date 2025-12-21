@@ -297,12 +297,15 @@ export class CacheService {
     key: string,
     limit: number,
     windowInSeconds: number,
-  ): Promise<{ allowed: boolean; remaining: number }> {
+  ): Promise<{ allowed: boolean; remaining: number, remainingRequests: number; retryAfterSeconds: number }> {
     try {
       const current = await this.increment(key, 1, windowInSeconds);
+      const ttl = await this.redis.ttl(key);
       return {
         allowed: current <= limit,
         remaining: Math.max(0, limit - current),
+        remainingRequests: Math.max(0, limit - current),
+        retryAfterSeconds: ttl > 0 ? ttl : windowInSeconds,
       };
     } catch (error) {
       this.logger.error(
@@ -313,6 +316,8 @@ export class CacheService {
       return {
         allowed: true,
         remaining: 1,
+        remainingRequests: 1,
+        retryAfterSeconds: 3600,
       };
     }
   }

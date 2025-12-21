@@ -53,35 +53,35 @@ export class ReelsRepository {
             createdDate: 'desc',
           },
         },
-        Comment: {
-          where: {
-            parentId: null, // Chỉ lấy comment gốc
-          },
-          orderBy: [
-            { CommentLike: { _count: 'desc' } }, // Sắp xếp theo số lượng like
-            { createdAt: 'desc' },
-          ],
-          take: 3, // Top 3 comments
-          include: {
-            User: {
-              select: {
-                id: true,
-                userName: true,
-                avatar: true,
-              },
-            },
-            CommentLike: {
-              select: {
-                id: true,
-              },
-            },
-            other_Comment: {
-              select: {
-                id: true,
-              },
-            },
-          },
-        },
+        // Comment: {
+        //   where: {
+        //     parentId: null,
+        //   },
+        //   orderBy: [
+        //     { CommentLike: { _count: 'desc' } },
+        //     { createdAt: 'desc' },
+        //   ],
+        //   take: 3, // Top 3 comments
+        //   include: {
+        //     User: {
+        //       select: {
+        //         id: true,
+        //         userName: true,
+        //         avatar: true,
+        //       },
+        //     },
+        //     CommentLike: {
+        //       select: {
+        //         id: true,
+        //       },
+        //     },
+        //     other_Comment: {
+        //       select: {
+        //         id: true,
+        //       },
+        //     },
+        //   },
+        // },
         PostLike: userId
           ? {
               where: {
@@ -141,18 +141,18 @@ export class ReelsRepository {
       likesCount: post._count.PostLike,
       commentsCount: post._count.Comment,
       savesCount: post._count.postSaves,
-      topComments: post.Comment.map((comment) => ({
-        id: comment.id,
-        content: comment.content,
-        createdAt: comment.createdAt,
-        User: {
-          id: comment.User.id,
-          userName: comment.User.userName,
-          avatar: comment.User.avatar ?? undefined,
-        },
-        likesCount: comment.CommentLike.length,
-        repliesCount: comment.other_Comment.length,
-      })),
+      // topComments: post.Comment.map((comment) => ({
+      //   id: comment.id,
+      //   content: comment.content,
+      //   createdAt: comment.createdAt,
+      //   User: {
+      //     id: comment.User.id,
+      //     userName: comment.User.userName,
+      //     avatar: comment.User.avatar ?? undefined,
+      //   },
+      //   likesCount: comment.CommentLike.length,
+      //   repliesCount: comment.other_Comment.length,
+      // })),
       isLiked: userId ? post.PostLike.length > 0 : undefined,
       isSaved: userId ? post.postSaves.length > 0 : undefined,
     }));

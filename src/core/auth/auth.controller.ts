@@ -2,7 +2,6 @@ import {
     Body,
     Controller,
     HttpCode,
-    Patch,
     Get,
     Request,
     Post,
@@ -15,9 +14,7 @@ import {
 import type { Response } from 'express';
 import { ZodValidationPipe } from 'nestjs-zod';
 import {
-    ApiCookieAuth,
     ApiOperation,
-    ApiBearerAuth,
     ApiResponse,
     ApiTags,
 } from '@nestjs/swagger';
@@ -25,6 +22,7 @@ import { TransformResponseInterceptor } from 'src/core/interceptors/response.int
 import { LoginResponseDto, LoginUserDto } from './dto/login.dto';
 import { TransformResponseDto } from 'src/core/decorators/response.decorator';
 import { RegisterUserDto, RegisterResponseDto } from './dto/register.dto';
+import { ResendVerificationDto, ResendVerificationResponseDto } from './dto/resend-verification.dto';
 import { AuthService } from "./auth.service";
 import { Public } from '../decorators/response.decorator';
 import { FacebookAuthGuard } from './guards/facebook-auth.guard';
@@ -121,7 +119,11 @@ export class AuthController {
       userAgent: req.headers['user-agent'] || 'Unknown',
       deviceName: this.deriveDeviceName(req.headers['user-agent'] || ''),
     };
-    return this.authService.checkTokenLogin(Number(userId), tokenLogin, clientMetadata);
+    return this.authService.checkTokenLogin(
+      Number(userId),
+      tokenLogin,
+      clientMetadata,
+    );
   }
 
   @Post('logout')
@@ -132,6 +134,24 @@ export class AuthController {
     const { id, deviceId } = request.user;
     await this.authService.logout(id, deviceId);
     return;
+  }
+
+  @Post('resend-verification')
+  @Public()
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Resend verification email' })
+  @ApiResponse({
+    status: 200,
+    description: 'Verification email sent successfully',
+    type: ResendVerificationResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Account not found',
+  })
+  @TransformResponseDto(ResendVerificationResponseDto)
+  async resendVerification(@Body() resendDto: ResendVerificationDto) {
+    return this.authService.resendVerification(resendDto.email);
   }
 
   @Post('verify')
