@@ -10,6 +10,8 @@ import {
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { Const } from '../../common/Constants';
 
 interface AuthenticatedSocket extends Socket {
   userId?: number;
@@ -31,7 +33,10 @@ export class MessageGateway
   private readonly logger = new Logger(MessageGateway.name);
   private readonly userSockets = new Map<number, Set<string>>(); // userId -> Set of socketIds (userId -> Tập hợp các socketIds)
 
-  constructor(private readonly jwtService: JwtService) {}
+  constructor(
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
+  ) {}
 
   handleConnection(client: AuthenticatedSocket) {
     try {
@@ -53,6 +58,9 @@ export class MessageGateway
       // Xác thực JWT token
       const payload = this.jwtService.verify<{ id?: number; sub?: number }>(
         token,
+        {
+          secret: this.configService.get<string>('JWT_SECRET'),
+        },
       );
       const userId = payload.id || payload.sub;
 
@@ -113,6 +121,98 @@ export class MessageGateway
       `User ${client.userId} joined conversation ${data.conversationId}`,
     );
     return { success: true, conversationId: data.conversationId };
+  }
+
+  /**
+   * Tham gia vào phòng bài đăng
+   */
+  @SubscribeMessage('join_post')
+  async handleJoinPost(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { postId: string },
+  ) {
+    if (!client.userId) {
+      return { error: 'Unauthorized' };
+    }
+
+    const room = `${Const.POST}:${data.postId}`;
+    await client.join(room);
+    this.logger.log(`User ${client.userId} joined post ${data.postId}`);
+    return { success: true, postId: data.postId };
+  }
+
+  /**
+   * Rời khỏi phòng bài đăng
+   */
+  @SubscribeMessage('leave_post')
+  async handleLeavePost(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { postId: string },
+  ) {
+    if (!client.userId) {
+      return { error: 'Unauthorized' };
+    }
+
+    const room = `${Const.POST}:${data.postId}`;
+    await client.leave(room);
+    this.logger.log(`User ${client.userId} left post ${data.postId}`);
+    return { success: true, postId: data.postId };
+  }
+
+  /**
+   * Broadcast comment mới tới tất cả users trong room
+   */
+  @SubscribeMessage('new_comment')
+  async handleNewComment(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { postId: string; comment: any },
+  ) {
+    if (!client.userId) {
+      return { error: 'Unauthorized' };
+    }
+
+    const room = `${Const.POST}:${data.postId}`;
+
+    // Broadcast comment mới tới tất cả users trong room này
+    // (gồm cả user vừa comment)
+    this.server.to(room).emit('comment_added', {
+      postId: data.postId,
+      comment: data.comment,
+      timestamp: new Date(),
+    });
+
+    this.logger.log(
+      `New comment on post ${data.postId} from user ${client.userId}`,
+    );
+
+    return { success: true };
+  }
+
+  /**
+   * Lắng nghe khi user xóa comment
+   */
+  @SubscribeMessage('delete_comment')
+  async handleDeleteComment(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { postId: string; commentId: string },
+  ) {
+    if (!client.userId) {
+      return { error: 'Unauthorized' };
+    }
+
+    const room = `post:${data.postId}`;
+
+    this.server.to(room).emit('comment_deleted', {
+      postId: data.postId,
+      commentId: data.commentId,
+      timestamp: new Date(),
+    });
+
+    this.logger.log(
+      `Comment ${data.commentId} deleted from post ${data.postId}`,
+    );
+
+    return { success: true };
   }
 
   /**
@@ -209,5 +309,22 @@ export class MessageGateway
     });
 
     return { success: true };
+  }
+
+  /**
+   * Broadcast comment mới tới tất cả users trong post room (gọi từ CommentService)
+   */
+  handleNewCommentBroadcast(
+    postId: string,
+    comment: any,
+    userId?: number | null,
+  ) {
+    const room = `${Const.POST}:${postId}`;
+    this.server.to(room).emit(`${Const.COMMENT_ADDED}`, {
+      postId,
+      comment,
+      timestamp: new Date(),
+    });
+    this.logger.log(`Broadcast new comment to post ${postId}`);
   }
 }

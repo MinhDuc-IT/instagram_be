@@ -167,6 +167,7 @@ model Comment {
   postId        String
   content       String
   parentId      Int?
+  rootId        Int
   createdAt     DateTime      @default(now())
   updatedAt     DateTime
   Comment       Comment?      @relation("CommentToComment", fields: [parentId], references: [id])
@@ -178,6 +179,7 @@ model Comment {
   @@index([parentId])
   @@index([postId])
   @@index([userId])
+  @@index([rootId, createdAt, id])
 }
 
 model CommentLike {
