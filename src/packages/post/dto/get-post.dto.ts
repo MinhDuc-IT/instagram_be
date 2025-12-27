@@ -52,6 +52,12 @@ export class CommentDto {
   text: string;
 
   @Expose()
+  likesCount: number;
+
+  @Expose()
+  isLiked: boolean;
+
+  @Expose()
   replyTo: string | null;
 
   @Expose()

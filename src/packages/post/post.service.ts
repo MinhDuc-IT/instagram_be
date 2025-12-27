@@ -243,6 +243,8 @@ export class PostService {
       userAvatar: c.User?.avatar || '',
       text: c.content,
       replyTo: null,
+      likesCount: c._count.CommentLike,
+      isLiked: false,
       createdAt: c.createdAt?.toISOString() || '',
       updatedAt: c.updatedAt?.toISOString() || '',
     }));
@@ -354,8 +356,22 @@ export class PostService {
             this.prisma.postLike.count({ where: { postId: post.id } }),
             this.prisma.comment.findMany({
               where: { postId: post.id, parentId: null },
-              orderBy: { createdAt: 'asc' },
-              include: { User: true },
+              orderBy: { createdAt: 'desc' },
+              include: {
+                User: true,
+                _count: {
+                  select: {
+                    CommentLike: true,
+                  },
+                },
+                CommentLike: currentUserId
+                  ? {
+                      where: {
+                        actorId: Number(currentUserId),
+                      },
+                    }
+                  : false,
+              },
             }),
             currentUserId
               ? this.prisma.postLike.findUnique({
@@ -381,17 +397,41 @@ export class PostService {
 
         console.log('Comments for post', post.id, comments);
 
-        const mappedComments: CommentDto[] = comments.map((c) => ({
-          id: c.id,
-          postId: c.postId,
-          userId: c.userId,
-          username: c.User?.userName || '',
-          userAvatar: c.User?.avatar || '',
-          text: c.content,
-          replyTo: null,
-          createdAt: c.createdAt?.toISOString() || '',
-          updatedAt: c.updatedAt?.toISOString() || '',
-        }));
+        const mappedComments: CommentDto[] = await Promise.all(
+          comments.map(async (c) => {
+            const repliesCount = await this.prisma.comment.count({
+              where: {
+                rootId: c.id,
+                id: { not: c.id },
+              },
+            });
+
+            return {
+              id: c.id,
+              postId: c.postId,
+              userId: c.userId,
+              username: c.User?.userName || '',
+              userAvatar: c.User?.avatar || '',
+              text: c.content,
+              replyTo: null,
+              createdAt: c.createdAt?.toISOString() || '',
+              updatedAt: c.updatedAt?.toISOString() || '',
+              likesCount: c._count.CommentLike,
+              repliesCount: repliesCount,
+              isLiked: currentUserId
+                ? (c.CommentLike as any[]).length > 0
+                : false,
+            };
+          }),
+        );
+
+        mappedComments.sort((a, b) => {
+          const aIsAuthorAndRoot =
+            a.userId === post.userId && a.replyTo === null ? 0 : 1;
+          const bIsAuthorAndRoot =
+            b.userId === post.userId && b.replyTo === null ? 0 : 1;
+          return aIsAuthorAndRoot - bIsAuthorAndRoot;
+        });
 
         return {
           id: post.id,
