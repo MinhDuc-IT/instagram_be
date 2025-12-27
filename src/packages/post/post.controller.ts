@@ -35,15 +35,29 @@ import { PostLikeToggleResponse, PostSaveToggleResponse } from './dto/post-inter
 import { CommentDto, CommentLikeToggleResponse, CreateCommentRequest, GetCommentsResponse } from './dto/comment.dto';
 import { EditPostDto } from './dto/edit-post.dto';
 import { GetHomeFeedDto } from './dto/get-home-feed.dto';
+import { OptionalJwtAuthGuard } from 'src/core/guards/optional-jwt-auth.guard';
 
 @ApiTags('Post')
 @Controller('post')
-@UseGuards(JwtAuthGuard)
+// @UseGuards(JwtAuthGuard)
 export class PostController {
     constructor(
         private readonly postService: PostService,
         private readonly commentService: CommentService,
     ) { }
+
+    @UseGuards(OptionalJwtAuthGuard)
+    @Get('home')
+    @ApiQuery({ name: 'page', required: false })
+    @ApiQuery({ name: 'limit', required: false })
+    async getHome(
+        @Req() req,
+        @Query('page') page = 1,
+        @Query('limit') limit = 10,
+    ) {
+        const userId = req.user?.id ?? null;
+        return this.postService.getHomeFeed(userId, +page, +limit);
+    }
 
     @Post()
     @HttpCode(HttpStatus.CREATED)
@@ -123,6 +137,7 @@ export class PostController {
     }
 
     @Patch(':id')
+    @UseGuards(JwtAuthGuard)
     @ApiOperation({ summary: 'Chỉnh sửa thông tin bài viết' })
     async editPost(
         @Param('id') id: string,
@@ -135,6 +150,7 @@ export class PostController {
     }
 
     @Get('user/:userId')
+    @UseGuards(OptionalJwtAuthGuard)
     @ApiOperation({ summary: 'Lấy thông tin bài viết' })
     @TransformResponseDto(PostDto)
     async getPosts(@Param('userId') userId: number, @Req() req: any) {
@@ -211,15 +227,15 @@ export class PostController {
     @Get(':postId/comments')
     @HttpCode(HttpStatus.OK)
     // @Public()
-    @ApiOperation({ 
+    @ApiOperation({
         summary: 'Lấy danh sách comment của bài viết (với cursor-based pagination)',
         description: 'Lấy comments có thể load thêm bằng cursor. Trả về cả replies (3 replies đầu tiên của mỗi comment)'
     })
-    
+
     @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Số comment trả về mỗi trang (mặc định 20)' })
     @ApiQuery({ name: 'cursor', required: false, type: String, description: 'ID comment cuối cùng của trang trước' })
-    @ApiResponse({ 
-        status: 200, 
+    @ApiResponse({
+        status: 200,
         description: 'Comments retrieved successfully',
         type: GetCommentsResponse,
     })
@@ -234,7 +250,7 @@ export class PostController {
     ) {
         const userId = req?.user?.id;
         const parsedLimit = limit ? parseInt(limit, 10) : 20;
-        
+
         if (isNaN(parsedLimit) || parsedLimit <= 0) {
             throw new BadRequestException('Invalid limit value');
         }
@@ -307,18 +323,6 @@ export class PostController {
         return await this.commentService.deleteComment(postId, commentId, userId);
     }
 
-    @Get('home')
-    async getHomeFeed(
-        @Req() req,
-        @Query() query: GetHomeFeedDto
-    ) {
-        return this.postService.getHomeFeed(
-            req.user.id,
-            query.page,
-            query.limit
-        );
-    }
-
     @Get(':postId/comments/:commentId/thread')
     @Public()
     @HttpCode(HttpStatus.OK)
@@ -342,14 +346,14 @@ export class PostController {
     @Get(':postId/comments/:commentId/replies')
     // @Public()
     @HttpCode(HttpStatus.OK)
-    @ApiOperation({ 
+    @ApiOperation({
         summary: 'Lấy replies của một comment (với cursor-based pagination)',
         description: 'Load thêm replies khi user click "View more replies"'
     })
     @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Số comment trả về mỗi trang (mặc định 20)' })
     @ApiQuery({ name: 'cursor', required: false, type: String, description: 'ID comment cuối cùng của trang trước' })
-    @ApiResponse({ 
-        status: 200, 
+    @ApiResponse({
+        status: 200,
         description: 'Replies retrieved successfully',
         type: GetCommentsResponse,
     })
@@ -365,17 +369,17 @@ export class PostController {
     ) {
         const userId = req?.user?.id;
         const parsedLimit = limit ? parseInt(limit, 10) : 20;
-        
+
         if (isNaN(parsedLimit) || parsedLimit <= 0) {
             throw new BadRequestException('Invalid limit value');
         }
 
         return await this.commentService.getCommentThreadPaginated(
-          postId,
-          commentId,
-          parsedLimit,
-          cursor,
-          userId,
+            postId,
+            commentId,
+            parsedLimit,
+            cursor,
+            userId,
         );
     }
 }

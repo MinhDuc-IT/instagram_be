@@ -42,32 +42,57 @@ export class PostRepository {
         });
     }
 
-    async getHomeFeed(userId: number, skip: number, take: number) {
-        const following = await this.prisma.follow.findMany({
-            where: { followerId: userId },
-            select: { followingId: true }
+    // Guest (chưa login)
+    async getPublicPostsRandom(skip: number, limit: number) {
+        return this.prisma.post.findMany({
+            where: {
+                deleted: false,
+                visibility: 'public',
+            },
+            orderBy: { createdDate: 'desc' },
+            skip: skip,
+            take: limit,
+            include: {
+                User: {
+                    select: {
+                        id: true,
+                        userName: true,
+                        avatar: true,
+                    },
+                },
+                UploadedAsset: true,
+            },
         });
+    }
 
-        const followingIds = following.map(f => f.followingId);
-
+    // User đã login
+    async getHomeFeedForUser(
+        viewerId: number,
+        skip: number,
+        take: number,
+    ) {
         return this.prisma.post.findMany({
             where: {
                 deleted: false,
                 OR: [
                     // Post của chính mình
-                    { userId },
+                    { userId: viewerId },
 
-                    // Post của người mình follow
+                    // Public
+                    { visibility: 'public' },
+
+                    // Followers only
                     {
-                        userId: { in: followingIds },
-                        visibility: {
-                            in: [
-                                POST_VISIBILITY.PUBLIC,
-                                POST_VISIBILITY.FOLLOWERS
-                            ]
-                        }
-                    }
-                ]
+                        visibility: 'followers',
+                        User: {
+                            Follow_Follow_followingIdToUser: {
+                                some: {
+                                    followerId: viewerId,
+                                },
+                            },
+                        },
+                    },
+                ],
             },
             orderBy: { createdDate: 'desc' },
             skip,
@@ -77,20 +102,54 @@ export class PostRepository {
                     select: {
                         id: true,
                         userName: true,
-                        avatar: true
-                    }
+                        avatar: true,
+                    },
                 },
                 UploadedAsset: true,
                 PostLike: {
-                    where: { actorId: userId }
+                    where: { actorId: viewerId },
+                },
+                postSaves: {
+                    where: { actorId: viewerId },
                 },
                 _count: {
                     select: {
                         PostLike: true,
-                        Comment: true
-                    }
-                }
-            }
+                        Comment: true,
+                    },
+                },
+            },
+        });
+    }
+
+    async countHomeFeedForUser(viewerId: number): Promise<number> {
+        return this.prisma.post.count({
+            where: {
+                deleted: false,
+                OR: [
+                    { userId: viewerId },
+                    { visibility: 'public' },
+                    {
+                        visibility: 'followers',
+                        User: {
+                            Follow_Follow_followingIdToUser: {
+                                some: {
+                                    followerId: viewerId,
+                                },
+                            },
+                        },
+                    },
+                ],
+            },
+        });
+    }
+
+    async countPublicPosts(): Promise<number> {
+        return this.prisma.post.count({
+            where: {
+                deleted: false,
+                visibility: 'public',
+            },
         });
     }
 }

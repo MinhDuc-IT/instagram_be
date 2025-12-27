@@ -3,13 +3,11 @@ import { StoryRepository } from './story.repository';
 import { JobStatusResponseDto } from 'src/core/upload/dto/background-job.dto';
 import { JOB_TYPES, UPLOAD_CONSTANTS } from 'src/core/upload/constants/upload.constants';
 import bull from 'bull';
-import { CacheService } from 'src/core/cache/cache.service';
-import { CloudinaryService } from 'src/core/upload/services/cloudinary.service';
-import { UploadAssetService } from 'src/core/upload/services/upload-asset.service';
 import { BackgroundJobRepository } from 'src/core/upload/repositories/background-job.repository';
 import { PrismaService } from 'src/core/prisma/prisma.service';
 import { InjectQueue } from '@nestjs/bull';
 import { writeTempFile } from 'src/core/upload/helpers/temp-file';
+import { buildPaginatedResponse } from 'src/utils/buildPaginatedResponse';
 
 @Injectable()
 export class StoryService {
@@ -17,16 +15,20 @@ export class StoryService {
 
     constructor(
         private readonly prisma: PrismaService,
-        private readonly cloudinaryService: CloudinaryService,
-        private readonly uploadAssetService: UploadAssetService,
         private readonly backgroundJobRepository: BackgroundJobRepository,
-        private readonly cacheService: CacheService,
         private repo: StoryRepository,
         @InjectQueue(UPLOAD_CONSTANTS.QUEUE_NAME) private readonly uploadQueue: bull.Queue,
     ) { }
 
-    async getHomeStories(userId: number) {
-        const stories = await this.repo.getHomeStories(userId);
+    async getHomeStories(
+        userId: number,
+        page: number,
+        limit: number,
+    ) {
+        const [stories, totalCount] = await Promise.all([
+            this.repo.getHomeStories(userId, page, limit),
+            this.repo.countHomeStoriesForUser(userId),
+        ]);
 
         const mapped = stories.map(s => {
             const isViewed = s.StoryView.length > 0;
@@ -37,20 +39,28 @@ export class StoryService {
                 createdAt: s.createdAt,
                 user: s.User,
                 isViewed,
-                isLiked
+                isLiked,
             };
         });
 
-        return mapped.sort((a, b) => {
+        // sort unseen trước
+        const sorted = mapped.sort((a, b) => {
             const aSeen = a.isViewed || a.isLiked;
             const bSeen = b.isViewed || b.isLiked;
 
             if (aSeen !== bSeen) {
-                return aSeen ? 1 : -1; // unseen lên đầu
+                return aSeen ? 1 : -1;
             }
 
             return b.createdAt.getTime() - a.createdAt.getTime();
         });
+
+        return buildPaginatedResponse(
+            sorted,
+            totalCount,
+            page,
+            limit,
+        );
     }
 
     async viewStory(userId: number, storyId: number) {

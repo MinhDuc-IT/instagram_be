@@ -17,10 +17,21 @@ import { CacheKeyBuilder } from '../../core/cache/cache.config';
 import { deleteTempFile, writeTempFile } from 'src/core/upload/helpers/temp-file';
 import { EditPostDto } from './dto/edit-post.dto';
 import {
-  ForbiddenException,
-  NotFoundException,
+    ForbiddenException,
+    NotFoundException,
 } from '@nestjs/common';
 import { PostRepository } from './post.repository';
+
+export interface PaginatedResponse {
+    posts: any[];
+    pagination: {
+        currentPage: number;
+        totalPages: number;
+        totalPosts: number;
+        limit: number;
+        hasMore: boolean;
+    };
+}
 
 @Injectable()
 export class PostService {
@@ -284,7 +295,7 @@ export class PostService {
             if (mediaToRemove.length) {
                 await this.prisma.uploadedAsset.updateMany({
                     where: { id: { in: mediaToRemove }, postId },
-                    data: { postId: null , deleted: true },
+                    data: { postId: null, deleted: true },
                 });
             }
         }
@@ -429,33 +440,86 @@ export class PostService {
     }
 
     async getHomeFeed(
-        userId: number,
-        page: number = 1,
-        limit: number = 10
+        viewerId: number | null,
+        page = 1,
+        limit = 10,
     ) {
-        const posts = await this.postRepository.getHomeFeed(
-            userId,
-            (page - 1) * limit,
-            limit
-        );
+        page = Math.max(1, page);
+        limit = Math.min(Math.max(1, limit), 50);
+        const skip = (page - 1) * limit;
 
-        return posts.map(p => ({
+        // Guest
+        if (!viewerId) {
+            const [posts, totalCount] = await Promise.all([
+                this.postRepository.getPublicPostsRandom(skip, limit),
+                this.postRepository.countPublicPosts(),
+            ]);
+
+            return this.buildPaginatedResponse(
+                posts.map(this.mapGuestPost),
+                totalCount,
+                page,
+                limit,
+            );
+        }
+
+        // Logged-in user
+        const [posts, totalCount] = await Promise.all([
+            this.postRepository.getHomeFeedForUser(viewerId, skip, limit),
+            this.postRepository.countHomeFeedForUser(viewerId),
+        ]);
+
+        const mappedPosts = posts.map(p => ({
             id: p.id,
             caption: p.caption,
-            location: p.location,
-            visibility: p.visibility,
             createdDate: p.createdDate,
+            visibility: p.visibility,
 
-            user: p.User,
-            assets: p.UploadedAsset,
+            userId: p.User.id,
+            username: p.User.userName,
+            userAvatar: p.User.avatar,
+            media: p.UploadedAsset,
 
-            // Like
             isLiked: p.PostLike.length > 0,
+            isSaved: p.postSaves.length > 0,
             likeCount: p.isLikesHidden ? null : p._count.PostLike,
-
-            // Comment
             commentCount: p._count.Comment,
-            isCommentsDisabled: p.isCommentsDisabled
+            isCommentsDisabled: p.isCommentsDisabled,
         }));
+
+        return this.buildPaginatedResponse(mappedPosts, totalCount, page, limit);
+    }
+
+    private buildPaginatedResponse(
+        posts: any[],
+        totalCount: number,
+        currentPage: number,
+        limit: number,
+    ): PaginatedResponse {
+        const totalPages = Math.ceil(totalCount / limit);
+        const hasMore = currentPage < totalPages;
+
+        return {
+            posts,
+            pagination: {
+                currentPage,
+                totalPages,
+                totalPosts: totalCount,
+                limit,
+                hasMore,
+            },
+        };
+    }
+
+    private mapGuestPost(p: any) {
+        return {
+            id: p.id,
+            caption: p.caption,
+            createdDate: p.createdDate,
+            userId: p.User.id,
+            username: p.User.userName,
+            userAvatar: p.User.avatar,
+            media: p.UploadedAsset,
+        };
     }
 }

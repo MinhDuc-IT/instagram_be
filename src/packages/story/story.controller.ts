@@ -17,7 +17,7 @@ import {
     Query,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { ApiBody, ApiConsumes, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiConsumes, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
 import { FileValidationPipe } from '../../core/upload/pipes/file-validation.pipe';
 import { MultiFileValidationPipe } from '../../core/upload/pipes/multi-file-validation.pipe';
@@ -28,27 +28,55 @@ import { UseGuards } from '@nestjs/common';
 import { TransformResponseDto, ResponseMessage } from 'src/core/decorators/response.decorator';
 import { StoryService } from './story.service';
 import { CreateStoryDto } from './dto/create-story.dto';
+import { OptionalJwtAuthGuard } from 'src/core/guards/optional-jwt-auth.guard';
+import { buildPaginatedResponse } from 'src/utils/buildPaginatedResponse';
 
-@UseGuards(JwtAuthGuard)
 @Controller('stories')
 export class StoryController {
     constructor(private service: StoryService) { }
 
     // Home story feed
+    @UseGuards(OptionalJwtAuthGuard)
     @Get('home')
-    getHomeStories(@Req() req) {
-        return this.service.getHomeStories(req.user.id);
+    @ApiQuery({ name: 'page', required: false, type: Number })
+    @ApiQuery({ name: 'limit', required: false, type: Number })
+    async getHomeStories(
+        @Req() req,
+        @Query('page') page?: string,
+        @Query('limit') limit?: string,
+    ) {
+        const userId = req.user?.id;
+
+        const pageNumber = Math.max(Number(page) || 1, 1);
+        const limitNumber = Math.min(Number(limit) || 10, 50);
+
+        if (!userId) {
+            return buildPaginatedResponse(
+                [],
+                0,
+                pageNumber,
+                limitNumber,
+            );
+        }
+
+        return this.service.getHomeStories(
+            userId,
+            pageNumber,
+            limitNumber,
+        );
     }
 
     // View story
+    @UseGuards(JwtAuthGuard)
     @Post(':id/view')
-    viewStory(@Req() req, @Param('id') id: string) {
+    async viewStory(@Req() req, @Param('id') id: string) {
         return this.service.viewStory(req.user.id, +id);
     }
 
     // Like / Unlike story
+    @UseGuards(JwtAuthGuard)
     @Post(':id/like')
-    likeStory(@Req() req, @Param('id') id: string) {
+    async likeStory(@Req() req, @Param('id') id: string) {
         return this.service.likeStory(req.user.id, +id);
     }
 

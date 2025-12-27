@@ -5,21 +5,32 @@ import { PrismaService } from '../../core/prisma/prisma.service';
 export class StoryRepository {
     constructor(private prisma: PrismaService) { }
 
-    async getHomeStories(userId: number) {
+    async getHomeStories(
+        userId: number,
+        page: number,
+        limit: number,
+    ) {
         const following = await this.prisma.follow.findMany({
             where: { followerId: userId },
-            select: { followingId: true }
+            select: { followingId: true },
         });
 
         const userIds = [userId, ...following.map(f => f.followingId)];
 
-        return this.prisma.story.findMany({
-            where: {
-                userId: { in: userIds },
-                createdAt: {
-                    gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // 24h
-                }
+        const whereCondition = {
+            userId: { in: userIds },
+            createdAt: {
+                gte: new Date(Date.now() - 24 * 60 * 60 * 1000),
             },
+        };
+
+        const stories = await this.prisma.story.findMany({
+            where: whereCondition,
+            orderBy: {
+                createdAt: "desc",
+            },
+            skip: (page - 1) * limit,
+            take: limit,
             include: {
                 User: {
                     select: {
@@ -34,9 +45,29 @@ export class StoryRepository {
                 },
                 StoryLike: {
                     where: { actorId: userId },
-                    select: { id: true }
-                }
-            }
+                    select: { id: true },
+                },
+            },
+        });
+
+        return stories;
+    }
+
+    async countHomeStoriesForUser(userId: number): Promise<number> {
+        const following = await this.prisma.follow.findMany({
+            where: { followerId: userId },
+            select: { followingId: true },
+        });
+
+        const userIds = [userId, ...following.map(f => f.followingId)];
+
+        return this.prisma.story.count({
+            where: {
+                userId: { in: userIds },
+                createdAt: {
+                    gte: new Date(Date.now() - 24 * 60 * 60 * 1000),
+                },
+            },
         });
     }
 

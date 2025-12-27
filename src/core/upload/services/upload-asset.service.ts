@@ -33,7 +33,7 @@ export class UploadAssetService {
                     folder,
                     tags: JSON.stringify(['upload', type]),
                     postId: postId,
-                    //storyId: storyId,
+                    storyId: storyId,
                 },
             });
 
