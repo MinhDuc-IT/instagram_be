@@ -12,6 +12,7 @@ import { BackgroundJobRepository } from '../../core/upload/repositories/backgrou
 import { CommentService } from './comment.service';
 import { MessageGateway } from '../message/message.gateway';
 import { JwtModule } from '@nestjs/jwt';
+import { PostRepository } from './post.repository';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { JwtModule } from '@nestjs/jwt';
     BackgroundJobRepository,
     CommentService,
     MessageGateway,
+    PostRepository
   ],
 })
-export class PostModule {}
+export class PostModule { }

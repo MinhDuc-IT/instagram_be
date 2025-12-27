@@ -33,4 +33,7 @@ export const JOB_TYPES = {
     UPLOAD_VIDEO: 'upload-video',
     UPLOAD_IMAGE_POST: 'upload-image-post',
     UPLOAD_VIDEO_POST: 'upload-video-post',
+
+    UPLOAD_STORY_IMAGE: 'upload_story_image',
+    UPLOAD_STORY_VIDEO: 'upload_story_video',
 } as const;

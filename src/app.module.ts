@@ -15,6 +15,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './core/auth/guards/jwt-auth.guard';
 import { PostModule } from './packages/post/post.module';
 import { MessageModule } from './packages/message/message.module';
+import { StoryModule } from './packages/story/story.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { MessageModule } from './packages/message/message.module';
     PostModule,
     MessageModule,
     ReelsModule,
+    StoryModule,
   ],
   controllers: [AppController],
   providers: [
