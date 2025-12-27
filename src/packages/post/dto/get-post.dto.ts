@@ -49,7 +49,7 @@ export class CommentDto {
   userAvatar: string | null;
 
   @Expose()
-  content: string;
+  text: string;
 
   @Expose()
   replyTo: string | null;
