@@ -49,7 +49,13 @@ export class CommentDto {
   userAvatar: string | null;
 
   @Expose()
-  content: string;
+  text: string;
+
+  @Expose()
+  likesCount: number;
+
+  @Expose()
+  isLiked: boolean;
 
   @Expose()
   replyTo: string | null;
