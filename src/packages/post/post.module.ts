@@ -12,6 +12,7 @@ import { BackgroundJobRepository } from '../../core/upload/repositories/backgrou
 import { CommentService } from './comment.service';
 import { MessageGateway } from '../message/message.gateway';
 import { JwtModule } from '@nestjs/jwt';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { JwtModule } from '@nestjs/jwt';
       name: UPLOAD_CONSTANTS.QUEUE_NAME,
     }),
     JwtModule.register({}),
+    NotificationModule,
   ],
   controllers: [PostController],
   providers: [

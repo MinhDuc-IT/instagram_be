@@ -15,6 +15,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './core/auth/guards/jwt-auth.guard';
 import { PostModule } from './packages/post/post.module';
 import { MessageModule } from './packages/message/message.module';
+import { NotificationModule } from './packages/notification/notification.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { MessageModule } from './packages/message/message.module';
     UploadModule,
     PostModule,
     MessageModule,
+    NotificationModule,
     ReelsModule,
   ],
   controllers: [AppController],
