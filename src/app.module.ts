@@ -15,6 +15,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './core/auth/guards/jwt-auth.guard';
 import { PostModule } from './packages/post/post.module';
 import { MessageModule } from './packages/message/message.module';
+import { NotificationModule } from './packages/notification/notification.module';
 import { FollowModule } from './packages/follow/follow.module';
 import { StoryModule } from './packages/story/story.module';
 
@@ -30,6 +31,7 @@ import { StoryModule } from './packages/story/story.module';
     UploadModule,
     PostModule,
     MessageModule,
+    NotificationModule,
     ReelsModule,
     FollowModule,
     StoryModule,

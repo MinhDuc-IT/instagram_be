@@ -147,10 +147,19 @@ export class AuthService {
         throw new UnauthorizedException('Invalid credentials');
       }
 
-      // Check if user trial has expired
+      // check if user trial has expired
+      // if(!user.isVerified || (user.trialExpiresAt && new Date(user.trialExpiresAt) < new Date())) {
+      //   throw new UnauthorizedException(
+      //     'Trial period expired. Please verify your email to continue.',
+      //   );
+      // }
+
+      // Check if unverified user's trial has expired
+      // Only block login if user is unverified AND trial period has expired
       if (
-        !user.isVerified ||
-        (user.trialExpiresAt && new Date(user.trialExpiresAt) < new Date())
+        !user.isVerified &&
+        user.trialExpiresAt &&
+        new Date(user.trialExpiresAt) < new Date()
       ) {
         throw new UnauthorizedException(
           'Trial period expired. Please verify your email to continue.',
