@@ -215,9 +215,9 @@ export class CommentService {
         },
         CommentLike: userId
           ? {
-              where: { actorId: userId },
-              select: { id: true },
-            }
+            where: { actorId: userId },
+            select: { id: true },
+          }
           : false,
         // other_Comment: {
         //   take: 3, // Lấy 3 replies đầu tiên
@@ -529,9 +529,9 @@ export class CommentService {
         },
         CommentLike: userId
           ? {
-              where: { actorId: userId },
-              select: { id: true },
-            }
+            where: { actorId: userId },
+            select: { id: true },
+          }
           : false,
         _count: {
           select: {
@@ -559,10 +559,10 @@ export class CommentService {
         replyToCommentId: reply.parentId,
         replyToUser: reply.Comment
           ? {
-              id: reply.Comment.User.id,
-              userName: reply.Comment.User.userName,
-              avatar: reply.Comment.User.avatar ?? undefined,
-            }
+            id: reply.Comment.User.id,
+            userName: reply.Comment.User.userName,
+            avatar: reply.Comment.User.avatar ?? undefined,
+          }
           : null,
         rootCommentId,
         createdAt: reply.createdAt.toISOString(),
@@ -648,10 +648,10 @@ export class CommentService {
         replyToCommentId: c.parentId,
         replyToUser: c.Comment
           ? {
-              id: c.Comment.User.id,
-              userName: c.Comment.User.userName,
-              avatar: c.Comment.User.avatar ?? undefined,
-            }
+            id: c.Comment.User.id,
+            userName: c.Comment.User.userName,
+            avatar: c.Comment.User.avatar ?? undefined,
+          }
           : null,
         rootCommentId: c.rootId,
         createdAt: c.createdAt.toISOString(),
@@ -682,10 +682,10 @@ export class CommentService {
       replyToCommentId: comment.parentId,
       replyToUser: replyToUser
         ? {
-            id: replyToUser.id,
-            userName: replyToUser.userName,
-            avatar: replyToUser.avatar ?? undefined,
-          }
+          id: replyToUser.id,
+          userName: replyToUser.userName,
+          avatar: replyToUser.avatar ?? undefined,
+        }
         : null,
       rootCommentId: rootCommentId ?? comment.rootId ?? comment.id,
       createdAt: comment.createdAt.toISOString(),
@@ -771,10 +771,10 @@ export class CommentService {
       replyToCommentId: c.parentId,
       replyToUser: parentUser
         ? {
-            id: parentUser.id,
-            userName: parentUser.userName,
-            avatar: parentUser.avatar ?? undefined,
-          }
+          id: parentUser.id,
+          userName: parentUser.userName,
+          avatar: parentUser.avatar ?? undefined,
+        }
         : null,
       rootCommentId: rootId,
       createdAt: c.createdAt.toISOString(),

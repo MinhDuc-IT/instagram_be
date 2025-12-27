@@ -36,6 +36,7 @@ export class UserController {
     }
 
     @Get(':id')
+    @UseGuards(JwtAuthGuard)
     @ApiOperation({ summary: 'Lấy thông tin chi tiết user' })
     @ApiResponse({ status: 200, description: 'User information retrieved successfully' })
     @ApiResponse({ status: 404, description: 'User not found' })
@@ -46,6 +47,8 @@ export class UserController {
         @Req() req: any
     ) {
         const currentUserId = req.user?.id;
+        console.log('Requested User ID:', req.user);
+        console.log('Current User ID from token:', currentUserId);
         const user = await this.userService.getUserProfile(userId, currentUserId);
 
         if (!user) {

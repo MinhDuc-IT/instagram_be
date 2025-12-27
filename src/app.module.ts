@@ -16,6 +16,8 @@ import { JwtAuthGuard } from './core/auth/guards/jwt-auth.guard';
 import { PostModule } from './packages/post/post.module';
 import { MessageModule } from './packages/message/message.module';
 import { NotificationModule } from './packages/notification/notification.module';
+import { FollowModule } from './packages/follow/follow.module';
+import { StoryModule } from './packages/story/story.module';
 
 @Module({
   imports: [
@@ -31,6 +33,8 @@ import { NotificationModule } from './packages/notification/notification.module'
     MessageModule,
     NotificationModule,
     ReelsModule,
+    FollowModule,
+    StoryModule,
   ],
   controllers: [AppController],
   providers: [
