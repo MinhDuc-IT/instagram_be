@@ -14,6 +14,7 @@ interface UploadJobData {
     filePath: string;
     fileName: string;
     postId: string | null;
+    storyId?: number;
     type: 'image' | 'video';
 }
 
@@ -130,4 +131,63 @@ export class UploadProcessor {
             deleteTempFile(filePath);
         }
     }
+
+    @Process(JOB_TYPES.UPLOAD_STORY_IMAGE)
+    async handleStoryImageUpload(job: Job<UploadJobData>) {
+        const { jobId, filePath, fileName, storyId } = job.data;
+
+        try {
+            await this.backgroundJobRepository.updateStatus(jobId, 'processing', 10);
+            const result = await this.cloudinaryService.uploadImage(filePath, fileName);
+
+            if (storyId) {
+                await this.uploadAssetService.saveAsset(
+                    result,
+                    'image',
+                    fileName,
+                    UPLOAD_CONSTANTS.IMAGE_FOLDER,
+                    null,
+                    storyId,
+                );
+            }
+
+            await this.backgroundJobRepository.updateResult(jobId, result);
+            return result;
+        } catch (e) {
+            await this.backgroundJobRepository.updateError(jobId, e.message, true);
+            throw e;
+        } finally {
+            deleteTempFile(filePath);
+        }
+    }
+
+    @Process(JOB_TYPES.UPLOAD_STORY_VIDEO)
+    async handleStoryVideoUpload(job: Job<UploadJobData>) {
+        const { jobId, filePath, fileName, storyId } = job.data;
+
+        try {
+            await this.backgroundJobRepository.updateStatus(jobId, 'processing', 10);
+            const result = await this.cloudinaryService.uploadVideo(filePath, fileName);
+
+            if (storyId) {
+                await this.uploadAssetService.saveAsset(
+                    result,
+                    'video',
+                    fileName,
+                    UPLOAD_CONSTANTS.VIDEO_FOLDER,
+                    null,
+                    storyId,
+                );
+            }
+
+            await this.backgroundJobRepository.updateResult(jobId, result);
+            return result;
+        } catch (e) {
+            await this.backgroundJobRepository.updateError(jobId, e.message, true);
+            throw e;
+        } finally {
+            deleteTempFile(filePath);
+        }
+    }
+
 }
