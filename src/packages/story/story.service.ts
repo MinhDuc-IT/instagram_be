@@ -26,7 +26,6 @@ export class StoryService {
         limit: number,
     ) {
         // Fetch all candidates (users with stories)
-        // Note: For large scale, we should move sorting logic to DB/Repository, but for this project scope, in-memory sorting of active story posters is acceptable.
         const usersWithStories = await this.repo.getHomeStories(userId, page, limit);
 
         const mapped = usersWithStories.map(user => {

@@ -18,21 +18,6 @@ export class StoryRepository {
         const targetUserIds = [userId, ...following.map(f => f.followingId)];
         const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-        // Approach: Find users who have active stories first (User-centric query)
-        // This is better for the "Story Bar" which lists Users.
-
-        // We need to support sorting (Unseen first, then Recent). 
-        // Doing this efficiently with pagination requires a specific query strategy or Raw SQL.
-        // For simplicity/maintainability with Prisma, we'll fetch users valid stories, 
-        // but to ensure 'unseen' sorting works across pages, we might need a raw query or fetching relevant IDs first.
-
-        // Let's optimize: Fetch aggregates first?
-        // Or simpler: Fetch all valid stories (lightweight) -> Group in memory -> Sort -> Paginate.
-        // If the scale is small (hundreds of follows), this is fast. 
-        // If scale is millions, we need Raw SQL. Assuming "Clone" scale for strict logic correctness:
-
-        // Let's try Prisma's `findMany` on User with `where` clause for Stories.
-
         const usersWithStories = await this.prisma.user.findMany({
             where: {
                 id: { in: targetUserIds },
@@ -65,9 +50,6 @@ export class StoryRepository {
 
         return usersWithStories;
     }
-
-    // countHomeStoriesForUser method removed as we are changing pagination strategy in Service
-
 
     async upsertView(userId: number, storyId: number) {
         return this.prisma.storyView.upsert({
