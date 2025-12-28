@@ -40,6 +40,7 @@ export class StoryService {
                     expiresAt: s.expiresAt,
                     isViewed,
                     isLiked,
+                    postId: (s as any).postId,
                 };
             });
 
@@ -153,5 +154,22 @@ export class StoryService {
             message: 'Story creation scheduled',
             status: 'pending',
         };
+    }
+
+    async createStoryFromPost(userId: number, postId: string) {
+        const post = await this.prisma.post.findUnique({ where: { id: postId } });
+        if (!post) throw new Error('Post not found');
+
+        const story = await this.prisma.story.create({
+            data: {
+                userId,
+                type: 'post',
+                postId: postId,
+                mediaUrl: '', // No media for shared post, frontend renders post
+                expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            },
+        });
+
+        return story;
     }
 }

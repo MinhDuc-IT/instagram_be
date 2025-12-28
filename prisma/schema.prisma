@@ -323,6 +323,7 @@ model Post {
   UploadedAsset      UploadedAsset[]
   postSaves          PostSave[]
   Notification       Notification[]
+  Story              Story[]
 
   @@index([createdDate])
   @@index([deleted])
@@ -352,6 +353,8 @@ model Story {
   StoryLike StoryLike[]
   StoryView StoryView[]
   Assets    UploadedAsset[]
+  postId    String?
+  Post      Post?       @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }

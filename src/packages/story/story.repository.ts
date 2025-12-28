@@ -43,6 +43,12 @@ export class StoryRepository {
                             where: { actorId: userId },
                             select: { id: true }
                         },
+                        Post: {
+                            include: {
+                                UploadedAsset: true,
+                                User: true
+                            }
+                        }
                     }
                 }
             }
