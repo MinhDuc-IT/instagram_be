@@ -323,6 +323,7 @@ model Post {
   UploadedAsset      UploadedAsset[]
   postSaves          PostSave[]
   Notification       Notification[]
+  Story              Story[]
 
   @@index([createdDate])
   @@index([deleted])
@@ -345,12 +346,15 @@ model Story {
   id        Int         @id @default(autoincrement())
   userId    Int
   mediaUrl  String
+  type      String      @default("image") // image | video
   createdAt DateTime    @default(now())
   expiresAt DateTime
   User      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   StoryLike StoryLike[]
   StoryView StoryView[]
   Assets    UploadedAsset[]
+  postId    String?
+  Post      Post?       @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }

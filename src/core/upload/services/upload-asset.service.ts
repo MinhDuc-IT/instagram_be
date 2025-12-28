@@ -38,6 +38,17 @@ export class UploadAssetService {
             });
 
             this.logger.log(`Asset saved: ${asset.publicId}`);
+
+            if (storyId) {
+                await this.prisma.story.update({
+                    where: { id: storyId },
+                    data: {
+                        mediaUrl: result.secureUrl,
+                        type: type,
+                    } as any,
+                });
+            }
+
             return UploadedAssetMapper.toDto(asset);
         } catch (error) {
             this.logger.error(`Failed to save asset: ${result.publicId}`, error);

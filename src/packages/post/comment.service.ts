@@ -22,7 +22,7 @@ export class CommentService {
     @Inject(forwardRef(() => MessageGateway))
     private readonly messageGateway: MessageGateway,
     private readonly notificationService: NotificationService,
-  ) {}
+  ) { }
 
   async createComment(
     postId: string,
@@ -43,6 +43,11 @@ export class CommentService {
       throw new BadRequestException(
         `Comment text cannot exceed ${Const.MAX_COMMENT_LENGTH} characters`,
       );
+    }
+
+    // Check if comments are disabled
+    if (post.isCommentsDisabled) {
+      throw new BadRequestException('Comments are disabled for this post');
     }
 
     // Validate replyTo if provided and derive rootId when replying
