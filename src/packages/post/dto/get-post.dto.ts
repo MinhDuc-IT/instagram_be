@@ -55,6 +55,9 @@ export class CommentDto {
   likesCount: number;
 
   @Expose()
+  repliesCount: number;
+
+  @Expose()
   isLiked: boolean;
 
   @Expose()

@@ -15,61 +15,59 @@ export class StoryRepository {
             select: { followingId: true },
         });
 
-        const userIds = [userId, ...following.map(f => f.followingId)];
+        const targetUserIds = [userId, ...following.map(f => f.followingId)];
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-        const whereCondition = {
-            userId: { in: userIds },
-            createdAt: {
-                gte: new Date(Date.now() - 24 * 60 * 60 * 1000),
-            },
-        };
+        // Approach: Find users who have active stories first (User-centric query)
+        // This is better for the "Story Bar" which lists Users.
 
-        const stories = await this.prisma.story.findMany({
-            where: whereCondition,
-            orderBy: {
-                createdAt: "desc",
-            },
-            skip: (page - 1) * limit,
-            take: limit,
-            include: {
-                User: {
-                    select: {
-                        id: true,
-                        userName: true,
-                        avatar: true
-                    }
-                },
-                StoryView: {
-                    where: { actorId: userId },
-                    select: { id: true }
-                },
-                StoryLike: {
-                    where: { actorId: userId },
-                    select: { id: true },
-                },
-            },
-        });
+        // We need to support sorting (Unseen first, then Recent). 
+        // Doing this efficiently with pagination requires a specific query strategy or Raw SQL.
+        // For simplicity/maintainability with Prisma, we'll fetch users valid stories, 
+        // but to ensure 'unseen' sorting works across pages, we might need a raw query or fetching relevant IDs first.
 
-        return stories;
-    }
+        // Let's optimize: Fetch aggregates first?
+        // Or simpler: Fetch all valid stories (lightweight) -> Group in memory -> Sort -> Paginate.
+        // If the scale is small (hundreds of follows), this is fast. 
+        // If scale is millions, we need Raw SQL. Assuming "Clone" scale for strict logic correctness:
 
-    async countHomeStoriesForUser(userId: number): Promise<number> {
-        const following = await this.prisma.follow.findMany({
-            where: { followerId: userId },
-            select: { followingId: true },
-        });
+        // Let's try Prisma's `findMany` on User with `where` clause for Stories.
 
-        const userIds = [userId, ...following.map(f => f.followingId)];
-
-        return this.prisma.story.count({
+        const usersWithStories = await this.prisma.user.findMany({
             where: {
-                userId: { in: userIds },
-                createdAt: {
-                    gte: new Date(Date.now() - 24 * 60 * 60 * 1000),
-                },
+                id: { in: targetUserIds },
+                Story: {
+                    some: {
+                        createdAt: { gte: twentyFourHoursAgo }
+                    }
+                }
             },
+            select: {
+                id: true,
+                userName: true,
+                avatar: true,
+                Story: {
+                    where: { createdAt: { gte: twentyFourHoursAgo } },
+                    orderBy: { createdAt: 'asc' }, // Chronological order for viewing
+                    include: {
+                        StoryView: {
+                            where: { actorId: userId },
+                            select: { id: true, viewedAt: true }
+                        },
+                        StoryLike: {
+                            where: { actorId: userId },
+                            select: { id: true }
+                        },
+                    }
+                }
+            }
         });
+
+        return usersWithStories;
     }
+
+    // countHomeStoriesForUser method removed as we are changing pagination strategy in Service
+
 
     async upsertView(userId: number, storyId: number) {
         return this.prisma.storyView.upsert({

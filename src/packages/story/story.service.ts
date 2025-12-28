@@ -25,38 +25,64 @@ export class StoryService {
         page: number,
         limit: number,
     ) {
-        const [stories, totalCount] = await Promise.all([
-            this.repo.getHomeStories(userId, page, limit),
-            this.repo.countHomeStoriesForUser(userId),
-        ]);
+        // Fetch all candidates (users with stories)
+        // Note: For large scale, we should move sorting logic to DB/Repository, but for this project scope, in-memory sorting of active story posters is acceptable.
+        const usersWithStories = await this.repo.getHomeStories(userId, page, limit);
 
-        const mapped = stories.map(s => {
-            const isViewed = s.StoryView.length > 0;
-            const isLiked = s.StoryLike.length > 0;
+        const mapped = usersWithStories.map(user => {
+            const stories = user.Story.map(s => {
+                const isViewed = s.StoryView.length > 0;
+                const isLiked = s.StoryLike.length > 0;
+                return {
+                    id: s.id,
+                    mediaUrl: s.mediaUrl,
+                    type: (s as any).type,
+                    createdAt: s.createdAt,
+                    expiresAt: s.expiresAt,
+                    isViewed,
+                    isLiked,
+                };
+            });
+
+            // Check if user has ANY unseen story
+            const hasUnseen = stories.some(s => !s.isViewed);
+            // Latest story time for sorting
+            const latestStoryAt = stories[stories.length - 1]?.createdAt?.getTime() || 0;
 
             return {
-                id: s.id,
-                createdAt: s.createdAt,
-                user: s.User,
-                isViewed,
-                isLiked,
+                user: {
+                    id: user.id,
+                    userName: user.userName,
+                    avatar: user.avatar,
+                },
+                stories,
+                hasUnseen,
+                latestStoryAt,
             };
         });
 
-        // sort unseen trước
+        // Sorting Logic:
+        // 1. Current User (requests say "Hiển thị story của chính user đầu tiên")
+        // 2. Users with Unseen stories (Recent first)
+        // 3. Users with only Seen stories (Recent first)
         const sorted = mapped.sort((a, b) => {
-            const aSeen = a.isViewed || a.isLiked;
-            const bSeen = b.isViewed || b.isLiked;
+            if (a.user.id === userId) return -1;
+            if (b.user.id === userId) return 1;
 
-            if (aSeen !== bSeen) {
-                return aSeen ? 1 : -1;
+            if (a.hasUnseen !== b.hasUnseen) {
+                return a.hasUnseen ? -1 : 1; // Unseen first
             }
 
-            return b.createdAt.getTime() - a.createdAt.getTime();
+            return b.latestStoryAt - a.latestStoryAt; // Recent first
         });
 
+        // Manual Pagination
+        const totalCount = sorted.length;
+        const startIndex = (page - 1) * limit;
+        const sliced = sorted.slice(startIndex, startIndex + limit);
+
         return buildPaginatedResponse(
-            sorted,
+            sliced,
             totalCount,
             page,
             limit,

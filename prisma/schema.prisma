@@ -345,6 +345,7 @@ model Story {
   id        Int         @id @default(autoincrement())
   userId    Int
   mediaUrl  String
+  type      String      @default("image") // image | video
   createdAt DateTime    @default(now())
   expiresAt DateTime
   User      User        @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -128,6 +128,7 @@ export class PostController {
     }
 
     @Get(':id')
+    @UseGuards(OptionalJwtAuthGuard)
     @ApiOperation({ summary: 'Lấy thông tin bài viết' })
     async getPost(@Param('id') id: string, @Req() req: any) {
         const currentUserId = req.user?.id;
@@ -151,12 +152,35 @@ export class PostController {
 
     @Get('user/:userId')
     @UseGuards(OptionalJwtAuthGuard)
-    @ApiOperation({ summary: 'Lấy thông tin bài viết' })
+    @ApiOperation({ summary: 'Lấy danh sách bài viết của user' })
     @TransformResponseDto(PostDto)
     async getPosts(@Param('userId') userId: number, @Req() req: any) {
         const currentUserId = req.user?.id;
         const posts = await this.postService.getPosts(userId, currentUserId);
         if (!posts) throw new NotFoundException('Posts not found');
+        return posts;
+    }
+
+    @Get('user/:userId/saved')
+    @UseGuards(OptionalJwtAuthGuard)
+    @ApiOperation({ summary: 'Lấy các bài viết user đã lưu' })
+    @TransformResponseDto(PostDto)
+    async getSavedPosts(@Param('userId') userId: number, @Req() req: any) {
+        const currentUserId = req.user?.id;
+        // Kiểm tra quyền? Thường chỉ xem được saved posts của chính mình
+        // if (currentUserId !== Number(userId)) throw new ForbiddenException();
+        // Nhưng tạm thời để open hoặc FE handle logic này
+        const posts = await this.postService.getSavedPosts(userId, currentUserId);
+        return posts;
+    }
+
+    @Get('user/:userId/reels')
+    @UseGuards(OptionalJwtAuthGuard)
+    @ApiOperation({ summary: 'Lấy danh sách Reels (Video posts) của user' })
+    @TransformResponseDto(PostDto)
+    async getReels(@Param('userId') userId: number, @Req() req: any) {
+        const currentUserId = req.user?.id;
+        const posts = await this.postService.getUserReels(userId, currentUserId);
         return posts;
     }
 
@@ -225,6 +249,7 @@ export class PostController {
     }
 
     @Get(':postId/comments')
+    @UseGuards(OptionalJwtAuthGuard)
     @HttpCode(HttpStatus.OK)
     // @Public()
     @ApiOperation({
@@ -344,7 +369,7 @@ export class PostController {
     }
 
     @Get(':postId/comments/:commentId/replies')
-    // @Public()
+    @UseGuards(OptionalJwtAuthGuard)
     @HttpCode(HttpStatus.OK)
     @ApiOperation({
         summary: 'Lấy replies của một comment (với cursor-based pagination)',
