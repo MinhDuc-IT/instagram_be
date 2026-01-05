@@ -47,8 +47,6 @@ export class UserController {
         @Req() req: any
     ) {
         const currentUserId = req.user?.id;
-        console.log('Requested User ID:', req.user);
-        console.log('Current User ID from token:', currentUserId);
         const user = await this.userService.getUserProfile(userId, currentUserId);
 
         if (!user) {

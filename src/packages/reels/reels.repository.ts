@@ -6,7 +6,6 @@ export class ReelsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async findReelsPagination(limit: number, cursor?: string, userId?: number) {
-
     const posts = await this.prisma.post.findMany({
       where: {
         deleted: false,
@@ -122,6 +121,7 @@ export class ReelsRepository {
       caption: post.caption ?? undefined,
       location: post.location ?? undefined,
       createdDate: post.createdDate,
+      isCommentsDisabled: post.isCommentsDisabled,
       User: {
         id: post.User.id,
         userName: post.User.userName,
