@@ -31,7 +31,7 @@ export class AuthService {
     private readonly cacheService: CacheService,
     private readonly emailService: EmailService,
     private readonly prisma: PrismaService,
-  ) {}
+  ) { }
 
   async register(registerDto: RegisterUserDto, clientMetadata: ClientMetadata) {
     // Check if user already exists
@@ -147,10 +147,19 @@ export class AuthService {
         throw new UnauthorizedException('Invalid credentials');
       }
 
-      // Check if user trial has expired
+      // check if user trial has expired
+      // if(!user.isVerified || (user.trialExpiresAt && new Date(user.trialExpiresAt) < new Date())) {
+      //   throw new UnauthorizedException(
+      //     'Trial period expired. Please verify your email to continue.',
+      //   );
+      // }
+
+      // Check if unverified user's trial has expired
+      // Only block login if user is unverified AND trial period has expired
       if (
-        !user.isVerified ||
-        (user.trialExpiresAt && new Date(user.trialExpiresAt) < new Date())
+        !user.isVerified &&
+        user.trialExpiresAt &&
+        new Date(user.trialExpiresAt) < new Date()
       ) {
         throw new UnauthorizedException(
           'Trial period expired. Please verify your email to continue.',
@@ -346,6 +355,65 @@ export class AuthService {
     }
 
     return user;
+  }
+
+  async refreshToken(
+    refreshToken: string,
+    clientMetadata: ClientMetadata,
+  ): Promise<any> {
+    try {
+      const verification = await this.tokenService.verifyRefreshToken(refreshToken);
+
+      if (!verification) {
+        throw new UnauthorizedException('Invalid or expired refresh token');
+      }
+
+      // Detection of token reuse!
+      if (verification.reuse && verification.family) {
+        // Potential breach: invalidating entire family as a precaution
+        await this.tokenService.invalidateTokenFamily(verification.family);
+        this.logger.error(`Suspicious refresh token activity for user ${verification.userId}. Revoked family ${verification.family}`);
+        throw new UnauthorizedException('Security breach detected. Please login again');
+      }
+
+      if (verification.reuse) {
+        throw new UnauthorizedException('Invalid refresh token');
+      }
+
+      const { userId, deviceId, tokenFamily, recordId } = verification;
+      if (!userId || !deviceId || !tokenFamily || !recordId) {
+        throw new UnauthorizedException('Invalid token state');
+      }
+
+      // Invalidate the old refresh token
+      const hashedOldToken = this.tokenService.hashToken(refreshToken);
+      await this.tokenService.invalidateRefreshToken(recordId, hashedOldToken);
+
+      // Generate new pair
+      const tokens = this.tokenService.generateTokens(userId, deviceId, tokenFamily);
+
+      // Store new refresh token
+      await this.tokenService.storeRefreshToken(
+        userId,
+        deviceId,
+        tokens.refreshToken,
+        tokens.expiresAt,
+        tokens.tokenFamily,
+      );
+
+      // Update user device last active
+      await this.deviceTrackingService.updateDevice(deviceId, clientMetadata);
+
+      return {
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        expiresAt: tokens.expiresAt,
+      };
+    } catch (error) {
+      if (error instanceof UnauthorizedException) throw error;
+      this.logger.error(`Refresh token failed: ${error.message}`, error.stack);
+      throw new UnauthorizedException('Token refresh failed');
+    }
   }
 
   async checkTokenLogin(

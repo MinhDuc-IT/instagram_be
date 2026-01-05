@@ -15,60 +15,46 @@ export class StoryRepository {
             select: { followingId: true },
         });
 
-        const userIds = [userId, ...following.map(f => f.followingId)];
+        const targetUserIds = [userId, ...following.map(f => f.followingId)];
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-        const whereCondition = {
-            userId: { in: userIds },
-            createdAt: {
-                gte: new Date(Date.now() - 24 * 60 * 60 * 1000),
-            },
-        };
-
-        const stories = await this.prisma.story.findMany({
-            where: whereCondition,
-            orderBy: {
-                createdAt: "desc",
-            },
-            skip: (page - 1) * limit,
-            take: limit,
-            include: {
-                User: {
-                    select: {
-                        id: true,
-                        userName: true,
-                        avatar: true
-                    }
-                },
-                StoryView: {
-                    where: { actorId: userId },
-                    select: { id: true }
-                },
-                StoryLike: {
-                    where: { actorId: userId },
-                    select: { id: true },
-                },
-            },
-        });
-
-        return stories;
-    }
-
-    async countHomeStoriesForUser(userId: number): Promise<number> {
-        const following = await this.prisma.follow.findMany({
-            where: { followerId: userId },
-            select: { followingId: true },
-        });
-
-        const userIds = [userId, ...following.map(f => f.followingId)];
-
-        return this.prisma.story.count({
+        const usersWithStories = await this.prisma.user.findMany({
             where: {
-                userId: { in: userIds },
-                createdAt: {
-                    gte: new Date(Date.now() - 24 * 60 * 60 * 1000),
-                },
+                id: { in: targetUserIds },
+                Story: {
+                    some: {
+                        createdAt: { gte: twentyFourHoursAgo }
+                    }
+                }
             },
+            select: {
+                id: true,
+                userName: true,
+                avatar: true,
+                Story: {
+                    where: { createdAt: { gte: twentyFourHoursAgo } },
+                    orderBy: { createdAt: 'asc' }, // Chronological order for viewing
+                    include: {
+                        StoryView: {
+                            where: { actorId: userId },
+                            select: { id: true, viewedAt: true }
+                        },
+                        StoryLike: {
+                            where: { actorId: userId },
+                            select: { id: true }
+                        },
+                        Post: {
+                            include: {
+                                UploadedAsset: true,
+                                User: true
+                            }
+                        }
+                    }
+                }
+            }
         });
+
+        return usersWithStories;
     }
 
     async upsertView(userId: number, storyId: number) {

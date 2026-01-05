@@ -23,7 +23,7 @@ export class TokenService {
     ) {
         this.accessTokenSecret = this.configService.get<string>('JWT_SECRET') ?? '';
         this.accessTokenExpiry = Number(this.configService.get<string>(
-            'JWT_EXPIRY_IN',
+            'JWT_EXPIRES_IN',
             '3600',
         ));
         this.refreshTokenExpiry = this.configService.get<number>(
@@ -32,9 +32,9 @@ export class TokenService {
         );
     }
 
-    generateTokens(userId: number, deviceId: number) {
-        // Generate a unique token family for refresh token rotation
-        const tokenFamily = uuidv4();
+    generateTokens(userId: number, deviceId: number, existingFamily?: string) {
+        // Generate or reuse token family for refresh token rotation
+        const tokenFamily = existingFamily || uuidv4();
 
         // Generate JWT access token
         const payload: JWTPayload = {
@@ -59,6 +59,60 @@ export class TokenService {
             expiresAt,
             tokenFamily,
         };
+    }
+
+    async verifyRefreshToken(token: string) {
+        const hashedToken = this.hashToken(token);
+
+        // 1. Check cache first
+        const cacheKey = `token:refresh:${hashedToken}`;
+        const cached = await this.cacheService.get(cacheKey);
+
+        if (cached) {
+            const parsed = JSON.parse(cached);
+            if (!parsed.valid) return null;
+        }
+
+        // 2. Query Database
+        const tokenRecord = await this.prisma.userToken.findFirst({
+            where: { refreshToken: hashedToken },
+        });
+
+        if (!tokenRecord) return null;
+
+        // 3. Validate
+        if (tokenRecord.invalidated) {
+            this.logger.warn(`Detection of token reuse! Family: ${tokenRecord.refreshTokenFamily}`);
+            return { reuse: true, family: tokenRecord.refreshTokenFamily, userId: tokenRecord.userId };
+        }
+
+        if (tokenRecord.expiresAt < new Date()) {
+            return null; // Expired
+        }
+
+        return {
+            reuse: false,
+            userId: tokenRecord.userId,
+            deviceId: tokenRecord.deviceId,
+            tokenFamily: tokenRecord.refreshTokenFamily,
+            recordId: tokenRecord.id,
+        };
+    }
+
+    async invalidateRefreshToken(id: number, hashedToken: string) {
+        await this.prisma.userToken.update({
+            where: { id },
+            data: { invalidated: true },
+        });
+        await this.cacheService.delete(`token:refresh:${hashedToken}`);
+    }
+
+    async invalidateTokenFamily(family: string) {
+        await this.prisma.userToken.updateMany({
+            where: { refreshTokenFamily: family },
+            data: { invalidated: true },
+        });
+        // Note: clearing cache for all tokens in family would be better but pattern match is needed
     }
 
     async storeRefreshToken(
@@ -92,7 +146,7 @@ export class TokenService {
         );
     }
 
-    private hashToken(token: string) {
+    hashToken(token: string) {
         return crypto.createHash('sha256').update(token).digest('hex');
     }
 
@@ -103,19 +157,13 @@ export class TokenService {
                 `token:${userId}:${deviceId}:*`,
             );
 
-            // 2. Find the refresh token for this device
-            const device = await this.prisma.userDevice.findUnique({
-                where: { id: deviceId },
-                select: { refreshToken: true },
+            // 2. Mark all refresh tokens for this device as invalidated
+            await this.prisma.userToken.updateMany({
+                where: { deviceId, userId },
+                data: { invalidated: true }
             });
 
-            if (device?.refreshToken) {
-                // 3. Invalidate the specific refresh token
-                await this.cacheService.delete(`refresh:${device.refreshToken}`);
-            }
-
-            // 4. Maintain a blacklist of revoked deviceIds for additional security
-            // This helps prevent token reuse after logout
+            // 3. Maintain a blacklist of revoked deviceIds for additional security
             await this.cacheService.set(
                 `revoked:${deviceId}`,
                 Date.now().toString(),

@@ -115,4 +115,13 @@ export class StoryController {
 
         return this.service.createStoryBackground(files[0], userId);
     }
+
+    @Post('share-post')
+    @UseGuards(JwtAuthGuard)
+    @HttpCode(HttpStatus.CREATED)
+    @ApiOperation({ summary: 'Share a post to story' })
+    async sharePost(@Req() req, @Body() body: { postId: string }) {
+        if (!body.postId) throw new BadRequestException('postId is required');
+        return this.service.createStoryFromPost(req.user.id, body.postId);
+    }
 }

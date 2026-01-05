@@ -1,25 +1,26 @@
 import {
-    Body,
-    Controller,
-    HttpCode,
-    Get,
-    Request,
-    Post,
-    Req,
-    Res,
-    UseGuards,
-    UseInterceptors,
-    Query,
+  Body,
+  Controller,
+  HttpCode,
+  Get,
+  Request,
+  Post,
+  Req,
+  Res,
+  UseGuards,
+  UseInterceptors,
+  Query,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { ZodValidationPipe } from 'nestjs-zod';
 import {
-    ApiOperation,
-    ApiResponse,
-    ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
 import { TransformResponseInterceptor } from 'src/core/interceptors/response.interceptor';
 import { LoginResponseDto, LoginUserDto } from './dto/login.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { TransformResponseDto } from 'src/core/decorators/response.decorator';
 import { RegisterUserDto, RegisterResponseDto } from './dto/register.dto';
 import { ResendVerificationDto, ResendVerificationResponseDto } from './dto/resend-verification.dto';
@@ -29,8 +30,8 @@ import { FacebookAuthGuard } from './guards/facebook-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { ConfigService } from '@nestjs/config';
 import {
-    VerifyAccountDto,
-    VerifyAccountResponseDto,
+  VerifyAccountDto,
+  VerifyAccountResponseDto,
 } from './dto/verify-account.dto';
 
 @ApiTags('Authentication')
@@ -41,7 +42,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
-  ) {}
+  ) { }
 
   @Post('login')
   @HttpCode(200)
@@ -84,7 +85,7 @@ export class AuthController {
   @Get('facebook')
   @Public()
   @UseGuards(FacebookAuthGuard)
-  async facebookLogin() {}
+  async facebookLogin() { }
 
   @Get('facebook/callback')
   @Public()
@@ -124,6 +125,23 @@ export class AuthController {
       tokenLogin,
       clientMetadata,
     );
+  }
+
+  @Post('refresh')
+  @HttpCode(200)
+  @Public()
+  @ApiOperation({ summary: 'Refresh access token using refresh token' })
+  async refresh(
+    @Body(new ZodValidationPipe(RefreshTokenDto)) dto: RefreshTokenDto,
+    @Req() req: Request,
+  ) {
+    const clientMetadata = {
+      ipAddress: this.extractIpAddress(req),
+      userAgent: req.headers['user-agent'] || 'Unknown',
+      deviceName: this.deriveDeviceName(req.headers['user-agent'] || ''),
+    };
+
+    return this.authService.refreshToken(dto.refreshToken, clientMetadata);
   }
 
   @Post('logout')

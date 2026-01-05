@@ -9,6 +9,7 @@ import { PrismaService } from '../../core/prisma/prisma.service';
 import { ConversationDto, CreateConversationDto } from './dto/conversation.dto';
 import { MessageDto, SendMessageDto } from './dto/message.dto';
 import { MessageGateway } from './message.gateway';
+import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
 export class MessageService {
@@ -16,6 +17,7 @@ export class MessageService {
     private readonly prisma: PrismaService,
     @Inject(forwardRef(() => MessageGateway))
     private readonly messageGateway: MessageGateway,
+    private readonly notificationService: NotificationService,
   ) {}
 
   /**
@@ -379,6 +381,55 @@ export class MessageService {
 
     // Emit new message via socket
     await this.messageGateway.emitNewMessage(conversationId, messageDto);
+
+    // Tạo notification cho người nhận (nếu không phải người gửi)
+    // Lấy danh sách thành viên conversation để tìm người nhận
+    const conversationMembers = await this.prisma.conversationMember.findMany({
+      where: {
+        conversationId,
+        userId: { not: userId }, // Lấy các thành viên khác (người nhận)
+        leftedAt: null,
+      },
+      include: {
+        User: {
+          select: {
+            id: true,
+            userName: true,
+            fullName: true,
+          },
+        },
+      },
+    });
+
+    // Lấy thông tin người gửi
+    const sender = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        userName: true,
+        fullName: true,
+      },
+    });
+
+    // Tạo notification cho mỗi người nhận
+    if (sender) {
+      const senderName = sender.fullName || sender.userName;
+      for (const member of conversationMembers) {
+        if (member.User) {
+          // Tạo notification (async, không cần đợi)
+          this.notificationService
+            .createMessageNotification(
+              member.User.id,
+              sender.id,
+              senderName,
+              conversationId,
+            )
+            .catch((error) => {
+              console.error('Error creating message notification:', error);
+            });
+        }
+      }
+    }
 
     return messageDto;
   }

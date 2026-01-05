@@ -5,18 +5,23 @@ import {
   ForbiddenException,
   Inject,
   forwardRef,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../core/prisma/prisma.service';
 import { CreateCommentRequest, CommentDto } from './dto/comment.dto';
 import { MessageGateway } from '../message/message.gateway';
 import { Const } from '../../common/Constants';
+import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
 export class CommentService {
+  private readonly logger = new Logger(CommentService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     @Inject(forwardRef(() => MessageGateway))
     private readonly messageGateway: MessageGateway,
+    private readonly notificationService: NotificationService,
   ) { }
 
   async createComment(
@@ -38,6 +43,11 @@ export class CommentService {
       throw new BadRequestException(
         `Comment text cannot exceed ${Const.MAX_COMMENT_LENGTH} characters`,
       );
+    }
+
+    // Check if comments are disabled
+    if (post.isCommentsDisabled) {
+      throw new BadRequestException('Comments are disabled for this post');
     }
 
     // Validate replyTo if provided and derive rootId when replying
@@ -121,6 +131,52 @@ export class CommentService {
     );
 
     this.messageGateway.handleNewCommentBroadcast(postId, commentDto, userId);
+
+    // Tạo notification
+    try {
+      // Lấy thông tin user đang comment
+      const commenter = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, userName: true, fullName: true },
+      });
+
+      if (commenter) {
+        const senderName = commenter.fullName || commenter.userName;
+
+        if (parentId && replyToUser) {
+          // Nếu là reply comment, tạo notification cho người được reply
+          // Chỉ tạo notification nếu không phải reply chính mình
+          if (replyToUser.id !== userId) {
+            await this.notificationService.createNotification({
+              receiverId: replyToUser.id,
+              senderId: userId,
+              type: 'comment',
+              content: `${senderName} đã trả lời bình luận của bạn`,
+              postId: postId,
+              commentId: createdComment.id,
+            });
+          }
+        } else {
+          // Nếu là comment mới, tạo notification cho chủ post
+          // Chỉ tạo notification nếu không phải comment chính post của mình
+          if (post.userId !== userId) {
+            await this.notificationService.createNotification({
+              receiverId: post.userId,
+              senderId: userId,
+              type: 'comment',
+              content: `${senderName} đã bình luận bài viết của bạn`,
+              postId: postId,
+              commentId: createdComment.id,
+            });
+          }
+        }
+      }
+    } catch (error) {
+      this.logger.error(
+        `Error creating comment notification: ${error.message}`,
+      );
+      // Không throw error để không ảnh hưởng đến flow chính
+    }
 
     return commentDto;
   }
@@ -272,7 +328,7 @@ export class CommentService {
   async toggleCommentLike(postId: string, commentId: number, userId: number) {
     const comment = await this.prisma.comment.findUnique({
       where: { id: commentId },
-      select: { id: true, postId: true },
+      select: { id: true, postId: true, userId: true },
     });
 
     if (!comment) {
@@ -298,6 +354,35 @@ export class CommentService {
           data: { actorId: userId, commentId },
         });
         isLiked = true;
+
+        // Tạo notification cho chủ comment (chỉ khi like, không phải unlike)
+        // Không tạo notification nếu user like chính comment của mình
+        if (comment.userId !== userId) {
+          try {
+            // Lấy thông tin user đang like
+            const liker = await this.prisma.user.findUnique({
+              where: { id: userId },
+              select: { id: true, userName: true, fullName: true },
+            });
+
+            if (liker) {
+              const senderName = liker.fullName || liker.userName;
+              await this.notificationService.createNotification({
+                receiverId: comment.userId,
+                senderId: userId,
+                type: 'comment_like',
+                content: `${senderName} đã thích bình luận của bạn`,
+                postId: comment.postId,
+                commentId: commentId,
+              });
+            }
+          } catch (error) {
+            this.logger.error(
+              `Error creating comment like notification: ${error.message}`,
+            );
+            // Không throw error để không ảnh hưởng đến flow chính
+          }
+        }
       } catch (error) {
         // Nếu duplicate do race condition, coi như đã like rồi
         if (error.code === 'P2002') {
