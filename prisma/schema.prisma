@@ -201,6 +201,7 @@ model Conversation {
   type               String               @default("private")
   name               String?
   avatar             String?
+  hash               String?              @unique // Hash để đảm bảo không có 2 conversation private giữa cùng 2 user
   createdAt          DateTime             @default(now())
   updatedAt          DateTime
   ConversationMember ConversationMember[]
@@ -221,6 +222,7 @@ model ConversationMember {
   @@index([conversationId])
   @@index([userId])
 }
+
 
 model PostSave {
   id        Int      @id @default(autoincrement())
