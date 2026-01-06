@@ -29,6 +29,9 @@ export class GetUserDto {
   posts: number;
 
   @Expose()
+  website: string;
+
+  @Expose()
   isFollowing: boolean;
 
   @Expose()
