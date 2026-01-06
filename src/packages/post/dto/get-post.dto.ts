@@ -109,7 +109,7 @@ export class PostDto {
 
   @Expose()
   commentsCount: number;
-  
+
   @Expose()
   comments: CommentDto[];
 
@@ -118,4 +118,7 @@ export class PostDto {
 
   @Expose()
   isSaved: boolean;
+
+  @Expose()
+  isFollowing?: boolean;
 }

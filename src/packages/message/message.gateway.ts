@@ -79,7 +79,13 @@ export class MessageGateway
       }
       this.userSockets.get(userId)!.add(client.id);
 
-      this.logger.log(`Client ${client.id} connected for user ${userId}`);
+      // Join user room để nhận new_message events cho tất cả conversations
+      // (không chỉ conversation đang mở)
+      void client.join(`user:${userId}`);
+
+      this.logger.log(
+        `Client ${client.id} connected for user ${userId} and joined user room`,
+      );
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
@@ -242,6 +248,30 @@ export class MessageGateway
     const room = `conversation:${conversationId}`;
     this.server.to(room).emit('new_message', message);
     this.logger.log(`Emitted new message to conversation ${conversationId}`);
+  }
+
+  /**
+   * Phát tin nhắn mới đến tất cả users trong conversation
+   * Emit đến cả conversation room (cho users đang mở conversation) và user rooms (cho tất cả users)
+   */
+  emitNewMessageToAllUsers(
+    conversationId: number,
+    message: unknown,
+    userIds: number[],
+  ) {
+    // Emit đến conversation room (cho users đang mở conversation)
+    const conversationRoom = `conversation:${conversationId}`;
+    this.server.to(conversationRoom).emit('new_message', message);
+
+    // Emit đến user rooms (cho tất cả users trong conversation, kể cả không mở conversation)
+    userIds.forEach((userId) => {
+      const userRoom = `user:${userId}`;
+      this.server.to(userRoom).emit('new_message', message);
+    });
+
+    this.logger.log(
+      `Emitted new message to conversation ${conversationId} and ${userIds.length} users`,
+    );
   }
 
   /**

@@ -21,7 +21,11 @@ import {
 import { MessageService } from './message.service';
 import { JwtAuthGuard } from '../../core/auth/guards/jwt-auth.guard';
 import { ConversationDto } from './dto/conversation.dto';
-import { MessageDto, SendMessageDto } from './dto/message.dto';
+import {
+  MessageDto,
+  SendMessageDto,
+  SendMessageToUserDto,
+} from './dto/message.dto';
 import { CreateConversationDto } from './dto/conversation.dto';
 import {
   TransformResponseDto,
@@ -133,6 +137,33 @@ export class MessageController {
       throw new Error('User not found in token');
     }
     return this.messageService.sendMessage(conversationId, userId, sendDto);
+  }
+
+  @Post('send')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Gửi tin nhắn đến một user (tự động tạo conversation nếu chưa có)',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Gửi tin nhắn thành công',
+    type: MessageDto,
+  })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  @ApiBody({ type: SendMessageToUserDto })
+  @TransformResponseDto(MessageDto)
+  @ResponseMessage('Gửi tin nhắn thành công')
+  async sendMessageToUser(
+    @Req() req: any,
+    @Body() sendDto: SendMessageToUserDto,
+  ): Promise<MessageDto> {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new Error('User not found in token');
+    }
+    return this.messageService.sendMessageToUser(userId, sendDto);
   }
 
   @Post('conversations/:conversationId/read')

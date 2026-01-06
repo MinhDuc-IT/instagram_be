@@ -178,6 +178,6 @@ export class UserService {
     const cacheKey = CacheKeyBuilder.userProfile(userId);
     await this.cacheService.delete(cacheKey);
 
-    return updated;
+    return this.getUserProfile(userId, userId);
   }
 }

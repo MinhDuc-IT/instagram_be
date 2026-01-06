@@ -2,6 +2,7 @@ import {
   Injectable,
   BadRequestException,
   NotFoundException,
+  Logger,
 } from '@nestjs/common';
 import { FollowRepository } from './follow.repository';
 import { PrismaService } from '../../core/prisma/prisma.service';
@@ -12,12 +13,16 @@ import {
   FollowStatusDto,
   UserProfileWithStatsDto,
 } from './dto';
+import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
 export class FollowService {
+  private readonly logger = new Logger(FollowService.name);
+
   constructor(
     private readonly followRepository: FollowRepository,
     private readonly prisma: PrismaService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async toggleFollow(
@@ -57,7 +62,31 @@ export class FollowService {
       isFollowing = true;
       message = 'Followed successfully';
 
-      // TODO: Create notification for the followed user
+      // Tạo notification cho người được follow (chỉ khi follow, không phải unfollow)
+      try {
+        // Lấy thông tin user đang follow
+        const follower = await this.prisma.user.findUnique({
+          where: { id: currentUserId },
+          select: { id: true, userName: true, fullName: true },
+        });
+
+        if (follower) {
+          const senderName = follower.fullName || follower.userName;
+          await this.notificationService.createNotification({
+            receiverId: targetUserId,
+            senderId: currentUserId,
+            type: 'follow',
+            content: `${senderName} đã theo dõi bạn`,
+          });
+        }
+      } catch (error: unknown) {
+        const errorMessage =
+          error instanceof Error ? error.message : 'Unknown error';
+        this.logger.error(
+          `Error creating follow notification: ${errorMessage}`,
+        );
+        // Không throw error để không ảnh hưởng đến flow chính
+      }
     }
 
     // Get updated counts
