@@ -36,7 +36,7 @@ export class StoryController {
     constructor(private service: StoryService) { }
 
     // Home story feed
-    @UseGuards(OptionalJwtAuthGuard)
+    @UseGuards(JwtAuthGuard)
     @Get('home')
     @ApiQuery({ name: 'page', required: false, type: Number })
     @ApiQuery({ name: 'limit', required: false, type: Number })

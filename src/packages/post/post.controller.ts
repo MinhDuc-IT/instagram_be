@@ -46,7 +46,7 @@ export class PostController {
         private readonly commentService: CommentService,
     ) { }
 
-    @UseGuards(OptionalJwtAuthGuard)
+    @UseGuards(JwtAuthGuard)
     @Get('home')
     @ApiQuery({ name: 'page', required: false })
     @ApiQuery({ name: 'limit', required: false })
