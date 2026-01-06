@@ -153,35 +153,50 @@ export class PostController {
     @Get('user/:userId')
     @UseGuards(OptionalJwtAuthGuard)
     @ApiOperation({ summary: 'Lấy danh sách bài viết của user' })
-    @TransformResponseDto(PostDto)
-    async getPosts(@Param('userId') userId: number, @Req() req: any) {
+    @ApiQuery({ name: 'page', required: false })
+    @ApiQuery({ name: 'limit', required: false })
+    async getPosts(
+        @Param('userId') userId: number,
+        @Req() req: any,
+        @Query('page') page = 1,
+        @Query('limit') limit = 10,
+    ) {
         const currentUserId = req.user?.id;
-        const posts = await this.postService.getPosts(userId, currentUserId);
-        if (!posts) throw new NotFoundException('Posts not found');
-        return posts;
+        const result = await this.postService.getPosts(userId, currentUserId, +page, +limit);
+        if (!result) throw new NotFoundException('Posts not found');
+        return result;
     }
 
     @Get('user/:userId/saved')
     @UseGuards(OptionalJwtAuthGuard)
     @ApiOperation({ summary: 'Lấy các bài viết user đã lưu' })
-    @TransformResponseDto(PostDto)
-    async getSavedPosts(@Param('userId') userId: number, @Req() req: any) {
+    @ApiQuery({ name: 'page', required: false })
+    @ApiQuery({ name: 'limit', required: false })
+    async getSavedPosts(
+        @Param('userId') userId: number,
+        @Req() req: any,
+        @Query('page') page = 1,
+        @Query('limit') limit = 10,
+    ) {
         const currentUserId = req.user?.id;
-        // Kiểm tra quyền? Thường chỉ xem được saved posts của chính mình
-        // if (currentUserId !== Number(userId)) throw new ForbiddenException();
-        // Nhưng tạm thời để open hoặc FE handle logic này
-        const posts = await this.postService.getSavedPosts(userId, currentUserId);
-        return posts;
+        const result = await this.postService.getSavedPosts(userId, currentUserId, +page, +limit);
+        return result;
     }
 
     @Get('user/:userId/reels')
     @UseGuards(OptionalJwtAuthGuard)
     @ApiOperation({ summary: 'Lấy danh sách Reels (Video posts) của user' })
-    @TransformResponseDto(PostDto)
-    async getReels(@Param('userId') userId: number, @Req() req: any) {
+    @ApiQuery({ name: 'page', required: false })
+    @ApiQuery({ name: 'limit', required: false })
+    async getReels(
+        @Param('userId') userId: number,
+        @Req() req: any,
+        @Query('page') page = 1,
+        @Query('limit') limit = 10,
+    ) {
         const currentUserId = req.user?.id;
-        const posts = await this.postService.getUserReels(userId, currentUserId);
-        return posts;
+        const result = await this.postService.getUserReels(userId, currentUserId, +page, +limit);
+        return result;
     }
 
     @Post(':postId/like')
