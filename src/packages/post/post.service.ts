@@ -1,30 +1,30 @@
-import { Injectable, Logger } from "@nestjs/common";
-import path from "path";
-import * as tmp from "tmp";
-import * as fs from "fs";
-import { PrismaService } from "../../core/prisma/prisma.service";
-import { CloudinaryService } from "../../core/upload/services/cloudinary.service";
-import { UploadAssetService } from "../../core/upload/services/upload-asset.service";
-import { CreatePostDto } from "./dto/create-post.dto";
-import { PostDto } from "./dto/get-post.dto";
-import { CommentDto } from "./dto/get-post.dto";
-import { InjectQueue } from "@nestjs/bull";
-import type { Queue } from "bull";
+import { Injectable, Logger } from '@nestjs/common';
+import path from 'path';
+import * as tmp from 'tmp';
+import * as fs from 'fs';
+import { PrismaService } from '../../core/prisma/prisma.service';
+import { CloudinaryService } from '../../core/upload/services/cloudinary.service';
+import { UploadAssetService } from '../../core/upload/services/upload-asset.service';
+import { CreatePostDto } from './dto/create-post.dto';
+import { PostDto } from './dto/get-post.dto';
+import { CommentDto } from './dto/get-post.dto';
+import { InjectQueue } from '@nestjs/bull';
+import type { Queue } from 'bull';
 import {
   JOB_TYPES,
   UPLOAD_CONSTANTS,
-} from "../../core/upload/constants/upload.constants";
-import { BackgroundJobRepository } from "../../core/upload/repositories/background-job.repository";
-import { CacheService } from "../../core/cache/cache.service";
-import { CacheKeyBuilder } from "../../core/cache/cache.config";
+} from '../../core/upload/constants/upload.constants';
+import { BackgroundJobRepository } from '../../core/upload/repositories/background-job.repository';
+import { CacheService } from '../../core/cache/cache.service';
+import { CacheKeyBuilder } from '../../core/cache/cache.config';
 import {
   deleteTempFile,
   writeTempFile,
-} from "src/core/upload/helpers/temp-file";
-import { EditPostDto } from "./dto/edit-post.dto";
-import { ForbiddenException, NotFoundException } from "@nestjs/common";
-import { NotificationService } from "../notification/notification.service";
-import { PostRepository } from "./post.repository";
+} from 'src/core/upload/helpers/temp-file';
+import { EditPostDto } from './dto/edit-post.dto';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { NotificationService } from '../notification/notification.service';
+import { PostRepository } from './post.repository';
 
 export interface PaginatedResponse {
   posts: any[];
@@ -50,30 +50,30 @@ export class PostService {
     private readonly postRepository: PostRepository,
     @InjectQueue(UPLOAD_CONSTANTS.QUEUE_NAME)
     private readonly uploadQueue: Queue,
-    private readonly notificationService: NotificationService
-  ) { }
+    private readonly notificationService: NotificationService,
+  ) {}
 
   async createPost(
     dto: CreatePostDto,
     files: Express.Multer.File[],
-    userId: number
+    userId: number,
   ) {
     this.logger.log(`Creating post for user ${userId}`);
 
-    const isLikesHidden = String(dto.isLikesHidden) === "true";
-    const isCommentsDisabled = String(dto.isCommentsDisabled) === "true";
+    const isLikesHidden = String(dto.isLikesHidden) === 'true';
+    const isCommentsDisabled = String(dto.isCommentsDisabled) === 'true';
 
     const user = await this.prisma.user.findUnique({
       where: { id: Number(userId) },
     });
-    if (!user) throw new Error("User not found");
+    if (!user) throw new Error('User not found');
 
     const post = await this.prisma.post.create({
       data: {
         userId,
         caption: dto.caption,
         location: dto.location,
-        visibility: dto.visibility ?? "public",
+        visibility: dto.visibility ?? 'public',
         isLikesHidden,
         isCommentsDisabled,
       },
@@ -83,27 +83,27 @@ export class PostService {
       const filePath = writeTempFile(file.buffer, file.originalname);
 
       try {
-        const isVideo = file.mimetype.startsWith("video/");
-        const type = isVideo ? "video" : "image";
+        const isVideo = file.mimetype.startsWith('video/');
+        const type = isVideo ? 'video' : 'image';
 
         const result = isVideo
           ? await this.cloudinaryService.uploadVideo(
-            filePath,
-            file.originalname
-          )
+              filePath,
+              file.originalname,
+            )
           : await this.cloudinaryService.uploadImage(
-            filePath,
-            file.originalname
-          );
+              filePath,
+              file.originalname,
+            );
 
         await this.uploadAssetService.saveAsset(
           result,
           type,
           file.originalname,
-          type === "video"
+          type === 'video'
             ? UPLOAD_CONSTANTS.VIDEO_FOLDER
             : UPLOAD_CONSTANTS.IMAGE_FOLDER,
-          post.id
+          post.id,
         );
       } finally {
         deleteTempFile(filePath);
@@ -122,25 +122,25 @@ export class PostService {
   async createPostBackground(
     dto: CreatePostDto,
     files: Express.Multer.File[],
-    userId: number
+    userId: number,
   ) {
     this.logger.log(`createPostBackground called with userId=${userId}`);
 
-    const isLikesHidden = String(dto.isLikesHidden) === "true";
-    const isCommentsDisabled = String(dto.isCommentsDisabled) === "true";
+    const isLikesHidden = String(dto.isLikesHidden) === 'true';
+    const isCommentsDisabled = String(dto.isCommentsDisabled) === 'true';
 
     // Ensure user exists to avoid foreign key constraint violations
     const user = await this.prisma.user.findUnique({
       where: { id: Number(userId) },
     });
-    if (!user) throw new Error("User not found");
+    if (!user) throw new Error('User not found');
 
     const post = await this.prisma.post.create({
       data: {
         userId,
         caption: dto.caption,
         location: dto.location,
-        visibility: dto.visibility ?? "public",
+        visibility: dto.visibility ?? 'public',
         isLikesHidden,
         isCommentsDisabled,
       },
@@ -149,16 +149,16 @@ export class PostService {
     for (const file of files) {
       // Create job record
       const job = await this.backgroundJobRepository.create({
-        type: "mixed",
+        type: 'mixed',
         fileName: file.originalname,
-        status: "pending",
+        status: 'pending',
         progress: 0,
         retryCount: 0,
         maxRetries: 3,
         createdDate: new Date(),
       });
 
-      const isVideo = file.mimetype.startsWith("video/");
+      const isVideo = file.mimetype.startsWith('video/');
       // const ext = path.extname(file.originalname);
       // const tmpFile = tmp.fileSync({ postfix: ext });
       // fs.writeFileSync(tmpFile.name, file.buffer);
@@ -173,14 +173,14 @@ export class PostService {
             // fileBase64: file.buffer.toString('base64'),
             filePath: filePath,
             fileName: file.originalname,
-            type: isVideo ? "video" : "image",
+            type: isVideo ? 'video' : 'image',
             postId: post.id,
             userId,
           },
           {
             attempts: 3,
-            backoff: { type: "exponential", delay: 2000 },
-          }
+            backoff: { type: 'exponential', delay: 2000 },
+          },
         );
       } finally {
         // deleteTempFile(filePath);
@@ -195,14 +195,14 @@ export class PostService {
 
     return {
       jobId: post.id,
-      message: "Post creation scheduled in background",
-      status: "pending",
+      message: 'Post creation scheduled in background',
+      status: 'pending',
     };
   }
 
   async getPostById(
     id: string,
-    currentUserId?: number
+    currentUserId?: number,
   ): Promise<PostDto | null> {
     const post = await this.prisma.post.findUnique({
       where: { id },
@@ -212,30 +212,35 @@ export class PostService {
     if (!post) return null;
 
     // fetch counts and comment list
-    const [likesCount, totalCommentsCount, comments, existingLike, existingSave] =
-      await Promise.all([
-        this.prisma.postLike.count({ where: { postId: post.id } }),
-        this.prisma.comment.count({ where: { postId: post.id } }),
-        this.prisma.comment.findMany({
-          where: { postId: post.id, parentId: null },
-          orderBy: { createdAt: "asc" },
-          include: {
-            User: true,
-            _count: {
-              select: {
-                CommentLike: true,
-                other_Comment: true,
-              },
+    const [
+      likesCount,
+      totalCommentsCount,
+      comments,
+      existingLike,
+      existingSave,
+    ] = await Promise.all([
+      this.prisma.postLike.count({ where: { postId: post.id } }),
+      this.prisma.comment.count({ where: { postId: post.id } }),
+      this.prisma.comment.findMany({
+        where: { postId: post.id, parentId: null },
+        orderBy: { createdAt: 'asc' },
+        include: {
+          User: true,
+          _count: {
+            select: {
+              CommentLike: true,
+              other_Comment: true,
             },
-            CommentLike: currentUserId
-              ? {
+          },
+          CommentLike: currentUserId
+            ? {
                 where: { actorId: Number(currentUserId) },
               }
-              : false,
-          },
-        }),
-        currentUserId
-          ? this.prisma.postLike.findUnique({
+            : false,
+        },
+      }),
+      currentUserId
+        ? this.prisma.postLike.findUnique({
             where: {
               actorId_postId: {
                 actorId: Number(currentUserId),
@@ -243,9 +248,9 @@ export class PostService {
               },
             },
           })
-          : Promise.resolve(null),
-        currentUserId
-          ? this.prisma.postSave.findUnique({
+        : Promise.resolve(null),
+      currentUserId
+        ? this.prisma.postSave.findUnique({
             where: {
               actorId_postId: {
                 actorId: Number(currentUserId),
@@ -253,31 +258,41 @@ export class PostService {
               },
             },
           })
-          : Promise.resolve(null),
-      ]);
+        : Promise.resolve(null),
+    ]);
 
-    const mappedComments: CommentDto[] = comments.map((c: any) => ({
-      id: c.id,
-      postId: c.postId,
-      userId: c.userId,
-      username: c.User?.userName || "",
-      userAvatar: c.User?.avatar || "",
-      text: c.content,
-      replyTo: null,
-      likesCount: c._count.CommentLike,
-      repliesCount: c._count.other_Comment,
-      isLiked: Array.isArray(c.CommentLike) && c.CommentLike.length > 0,
-      createdAt: c.createdAt?.toISOString() || "",
-      updatedAt: c.updatedAt?.toISOString() || "",
-    }));
+    const mappedComments: CommentDto[] = await Promise.all(
+      comments.map(async (c: any) => {
+        const repliesCount = await this.prisma.comment.count({
+          where: {
+            rootId: c.id,
+            id: { not: c.id },
+          },
+        });
+        return {
+          id: c.id,
+          postId: c.postId,
+          userId: c.userId,
+          username: c.User?.userName || '',
+          userAvatar: c.User?.avatar || '',
+          text: c.content,
+          replyTo: null,
+          likesCount: c._count.CommentLike,
+          repliesCount: repliesCount,
+          isLiked: Array.isArray(c.CommentLike) && c.CommentLike.length > 0,
+          createdAt: c.createdAt?.toISOString() || '',
+          updatedAt: c.updatedAt?.toISOString() || '',
+        };
+      }),
+    );
 
     const dto: PostDto = {
       id: post.id,
       userId: post.userId,
-      username: post.User?.userName || "",
-      userAvatar: post.User?.avatar || "",
-      caption: post.caption ?? "",
-      location: post.location ?? "",
+      username: post.User?.userName || '',
+      userAvatar: post.User?.avatar || '',
+      caption: post.caption ?? '',
+      location: post.location ?? '',
       visibility: post.visibility,
       isLikesHidden: post.isLikesHidden,
       isCommentsDisabled: post.isCommentsDisabled,
@@ -312,11 +327,11 @@ export class PostService {
     });
 
     if (!post) {
-      throw new NotFoundException("Post not found");
+      throw new NotFoundException('Post not found');
     }
 
     if (post.userId !== Number(userId)) {
-      throw new ForbiddenException("You are not allowed to edit this post");
+      throw new ForbiddenException('You are not allowed to edit this post');
     }
 
     await this.prisma.post.update({
@@ -335,11 +350,11 @@ export class PostService {
       const existingMediaIds = post.UploadedAsset.map((m) => m.id);
 
       const mediaToAdd = mediaIds.filter(
-        (id) => !existingMediaIds.includes(id)
+        (id) => !existingMediaIds.includes(id),
       );
 
       const mediaToRemove = existingMediaIds.filter(
-        (id) => !mediaIds.includes(id)
+        (id) => !mediaIds.includes(id),
       );
 
       if (mediaToAdd.length) {
@@ -359,7 +374,7 @@ export class PostService {
 
     return {
       id: postId,
-      message: "Post updated successfully",
+      message: 'Post updated successfully',
     };
   }
 
@@ -367,7 +382,7 @@ export class PostService {
     const posts = await this.prisma.post.findMany({
       where: { userId: Number(userId) },
       include: { UploadedAsset: true, User: true },
-      orderBy: { createdDate: "desc" },
+      orderBy: { createdDate: 'desc' },
     });
 
     // Map posts and fetch counts/status per post
@@ -378,7 +393,7 @@ export class PostService {
             this.prisma.postLike.count({ where: { postId: post.id } }),
             this.prisma.comment.findMany({
               where: { postId: post.id, parentId: null },
-              orderBy: { createdAt: "desc" },
+              orderBy: { createdAt: 'desc' },
               include: {
                 User: true,
                 _count: {
@@ -388,36 +403,36 @@ export class PostService {
                 },
                 CommentLike: currentUserId
                   ? {
-                    where: {
-                      actorId: Number(currentUserId),
-                    },
-                  }
+                      where: {
+                        actorId: Number(currentUserId),
+                      },
+                    }
                   : false,
               },
             }),
             currentUserId
               ? this.prisma.postLike.findUnique({
-                where: {
-                  actorId_postId: {
-                    actorId: Number(currentUserId),
-                    postId: post.id,
+                  where: {
+                    actorId_postId: {
+                      actorId: Number(currentUserId),
+                      postId: post.id,
+                    },
                   },
-                },
-              })
+                })
               : Promise.resolve(null),
             currentUserId
               ? this.prisma.postSave.findUnique({
-                where: {
-                  actorId_postId: {
-                    actorId: Number(currentUserId),
-                    postId: post.id,
+                  where: {
+                    actorId_postId: {
+                      actorId: Number(currentUserId),
+                      postId: post.id,
+                    },
                   },
-                },
-              })
+                })
               : Promise.resolve(null),
           ]);
 
-        console.log("Comments for post", post.id, comments);
+        console.log('Comments for post', post.id, comments);
 
         const mappedComments: CommentDto[] = await Promise.all(
           comments.map(async (c) => {
@@ -431,19 +446,19 @@ export class PostService {
               id: c.id,
               postId: c.postId,
               userId: c.userId,
-              username: c.User?.userName || "",
-              userAvatar: c.User?.avatar || "",
+              username: c.User?.userName || '',
+              userAvatar: c.User?.avatar || '',
               text: c.content,
               replyTo: null,
-              createdAt: c.createdAt?.toISOString() || "",
-              updatedAt: c.updatedAt?.toISOString() || "",
+              createdAt: c.createdAt?.toISOString() || '',
+              updatedAt: c.updatedAt?.toISOString() || '',
               likesCount: c._count.CommentLike,
               repliesCount: repliesCount,
               isLiked: currentUserId
                 ? (c.CommentLike as any[]).length > 0
                 : false,
             };
-          })
+          }),
         );
 
         mappedComments.sort((a, b) => {
@@ -457,10 +472,10 @@ export class PostService {
         return {
           id: post.id,
           userId: post.userId,
-          username: post.User?.userName || "",
-          userAvatar: post.User?.avatar || "",
-          caption: post.caption ?? "",
-          location: post.location ?? "",
+          username: post.User?.userName || '',
+          userAvatar: post.User?.avatar || '',
+          caption: post.caption ?? '',
+          location: post.location ?? '',
           visibility: post.visibility,
           media: post.UploadedAsset.map((m) => ({
             id: m.id,
@@ -478,12 +493,14 @@ export class PostService {
           timestamp:
             post.createdDate?.toISOString() || new Date().toISOString(),
           likes: likesCount,
-          commentsCount: comments.length,
+          commentsCount: await this.prisma.comment.count({
+            where: { postId: post.id },
+          }),
           comments: mappedComments,
           isLiked: !!existingLike,
           isSaved: !!existingSave,
         } as PostDto;
-      })
+      }),
     );
 
     return mapped;
@@ -493,7 +510,7 @@ export class PostService {
     // Check if post exists
     const post = await this.prisma.post.findUnique({ where: { id: postId } });
     if (!post) {
-      throw new Error("Post not found");
+      throw new Error('Post not found');
     }
 
     // Check if user already liked
@@ -524,14 +541,14 @@ export class PostService {
             await this.notificationService.createNotification({
               receiverId: post.userId,
               senderId: userId,
-              type: "like",
+              type: 'like',
               content: `${senderName} đã thích bài viết của bạn`,
               postId: post.id,
             });
           }
         } catch (error) {
           this.logger.error(
-            `Error creating like notification: ${error.message}`
+            `Error creating like notification: ${error.message}`,
           );
           // Không throw error để không ảnh hưởng đến flow chính
         }
@@ -549,7 +566,7 @@ export class PostService {
     // Check if post exists
     const post = await this.prisma.post.findUnique({ where: { id: postId } });
     if (!post) {
-      throw new Error("Post not found");
+      throw new Error('Post not found');
     }
 
     // Check if user already saved
@@ -590,7 +607,7 @@ export class PostService {
         posts.map(this.mapGuestPost),
         totalCount,
         page,
-        limit
+        limit,
       );
     }
 
@@ -625,6 +642,7 @@ export class PostService {
 
       isLiked: p.PostLike.length > 0,
       isSaved: p.postSaves.length > 0,
+      isFollowing: (p.User as any).Follow_Follow_followingIdToUser?.length > 0,
       likeCount: p.isLikesHidden ? null : p._count.PostLike,
       commentsCount: p._count.Comment,
       isCommentsDisabled: p.isCommentsDisabled,
@@ -637,7 +655,7 @@ export class PostService {
     posts: any[],
     totalCount: number,
     currentPage: number,
-    limit: number
+    limit: number,
   ): PaginatedResponse {
     const totalPages = Math.ceil(totalCount / limit);
     const hasMore = currentPage < totalPages;
@@ -654,7 +672,10 @@ export class PostService {
     };
   }
 
-  async getSavedPosts(userId: number, currentUserId?: number): Promise<PostDto[]> {
+  async getSavedPosts(
+    userId: number,
+    currentUserId?: number,
+  ): Promise<PostDto[]> {
     const saved = await this.prisma.postSave.findMany({
       where: { actorId: Number(userId) },
       include: {
@@ -665,7 +686,7 @@ export class PostService {
           },
         },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: { createdAt: 'desc' },
     });
 
     const posts = saved.map((s) => s.Post).filter((p) => !p.deleted);
@@ -675,25 +696,31 @@ export class PostService {
     return await this.mapPostsToDto(posts, currentUserId);
   }
 
-  async getUserReels(userId: number, currentUserId?: number): Promise<PostDto[]> {
+  async getUserReels(
+    userId: number,
+    currentUserId?: number,
+  ): Promise<PostDto[]> {
     const posts = await this.prisma.post.findMany({
       where: {
         userId: Number(userId),
         deleted: false,
         UploadedAsset: {
           some: {
-            type: "video",
+            type: 'video',
           },
         },
       },
       include: { UploadedAsset: true, User: true },
-      orderBy: { createdDate: "desc" },
+      orderBy: { createdDate: 'desc' },
     });
 
     return await this.mapPostsToDto(posts, currentUserId);
   }
 
-  private async mapPostsToDto(posts: any[], currentUserId?: number): Promise<PostDto[]> {
+  private async mapPostsToDto(
+    posts: any[],
+    currentUserId?: number,
+  ): Promise<PostDto[]> {
     return await Promise.all(
       posts.map(async (post) => {
         const [likesCount, commentsCount, existingLike, existingSave] =
@@ -702,33 +729,33 @@ export class PostService {
             this.prisma.comment.count({ where: { postId: post.id } }),
             currentUserId
               ? this.prisma.postLike.findUnique({
-                where: {
-                  actorId_postId: {
-                    actorId: Number(currentUserId),
-                    postId: post.id,
+                  where: {
+                    actorId_postId: {
+                      actorId: Number(currentUserId),
+                      postId: post.id,
+                    },
                   },
-                },
-              })
+                })
               : Promise.resolve(null),
             currentUserId
               ? this.prisma.postSave.findUnique({
-                where: {
-                  actorId_postId: {
-                    actorId: Number(currentUserId),
-                    postId: post.id,
+                  where: {
+                    actorId_postId: {
+                      actorId: Number(currentUserId),
+                      postId: post.id,
+                    },
                   },
-                },
-              })
+                })
               : Promise.resolve(null),
           ]);
 
         return {
           id: post.id,
           userId: post.userId,
-          username: post.User?.userName || "",
-          userAvatar: post.User?.avatar || "",
-          caption: post.caption ?? "",
-          location: post.location ?? "",
+          username: post.User?.userName || '',
+          userAvatar: post.User?.avatar || '',
+          caption: post.caption ?? '',
+          location: post.location ?? '',
           visibility: post.visibility,
           media: post.UploadedAsset.map((m: any) => ({
             id: m.id,
@@ -751,7 +778,7 @@ export class PostService {
           isLiked: !!existingLike,
           isSaved: !!existingSave,
         } as PostDto;
-      })
+      }),
     );
   }
 
