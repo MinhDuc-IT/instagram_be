@@ -7,7 +7,11 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../core/prisma/prisma.service';
 import { ConversationDto, CreateConversationDto } from './dto/conversation.dto';
-import { MessageDto, SendMessageDto } from './dto/message.dto';
+import {
+  MessageDto,
+  SendMessageDto,
+  SendMessageToUserDto,
+} from './dto/message.dto';
 import { MessageGateway } from './message.gateway';
 import { NotificationService } from '../notification/notification.service';
 
@@ -19,6 +23,14 @@ export class MessageService {
     private readonly messageGateway: MessageGateway,
     private readonly notificationService: NotificationService,
   ) {}
+
+  /**
+   * Tạo hash để đảm bảo không có 2 conversation private giữa cùng 2 user
+   * Format: "min(userId1, userId2):max(userId1, userId2)"
+   */
+  private buildHash(a: number, b: number): string {
+    return `${Math.min(a, b)}:${Math.max(a, b)}`;
+  }
 
   /**
    * Lấy danh sách conversations của user hiện tại
@@ -137,7 +149,15 @@ export class MessageService {
     userId: number,
     createDto: CreateConversationDto,
   ): Promise<ConversationDto> {
-    const { participantId } = createDto;
+    // Parse participantId thành number nếu là string
+    const participantId =
+      typeof createDto.participantId === 'string'
+        ? parseInt(createDto.participantId, 10)
+        : createDto.participantId;
+
+    if (isNaN(participantId)) {
+      throw new BadRequestException('Invalid participantId');
+    }
 
     if (userId === participantId) {
       throw new BadRequestException(
@@ -154,81 +174,13 @@ export class MessageService {
       throw new NotFoundException('Người dùng không tồn tại');
     }
 
-    // Tìm conversation đã tồn tại (private conversation giữa 2 người)
-    // Tìm conversations mà user hiện tại tham gia
-    const userConversationMembers =
-      await this.prisma.conversationMember.findMany({
-        where: {
-          userId,
-          leftedAt: null,
-          Conversation: {
-            type: 'private',
-          },
-        },
-        include: {
-          Conversation: true,
-        },
-      });
+    // Tạo hash để tìm conversation đã tồn tại
+    const hash = this.buildHash(userId, participantId);
 
-    // Kiểm tra từng conversation xem có chứa participantId không
-    for (const member of userConversationMembers) {
-      const conversationId = member.conversationId;
-
-      // Kiểm tra xem participant có trong conversation này không
-      const participantMember = await this.prisma.conversationMember.findFirst({
-        where: {
-          conversationId,
-          userId: participantId,
-          leftedAt: null,
-        },
-      });
-
-      // Nếu tìm thấy và conversation chỉ có 2 thành viên
-      if (participantMember) {
-        const allMembers = await this.prisma.conversationMember.findMany({
-          where: {
-            conversationId,
-            leftedAt: null,
-          },
-        });
-
-        if (allMembers.length === 2) {
-          // Conversation đã tồn tại, lấy thông tin participant
-          const participantUser = await this.prisma.user.findUnique({
-            where: { id: participantId },
-            select: {
-              id: true,
-              userName: true,
-              fullName: true,
-              avatar: true,
-            },
-          });
-
-          if (participantUser && member.Conversation) {
-            return {
-              id: conversationId.toString(),
-              participant: {
-                id: participantUser.id.toString(),
-                username: participantUser.userName,
-                fullName: participantUser.fullName || undefined,
-                avatar: participantUser.avatar || undefined,
-              },
-              unreadCount: 0,
-              updatedAt: member.Conversation.updatedAt.toISOString(),
-            };
-          }
-        }
-      }
-    }
-
-    // Tạo conversation mới
-    const newConversation = await this.prisma.conversation.create({
-      data: {
-        type: 'private',
-        updatedAt: new Date(),
-        ConversationMember: {
-          create: [{ userId }, { userId: participantId }],
-        },
+    // Tìm conversation đã tồn tại thông qua hash
+    const existingConversation = await this.prisma.conversation.findUnique({
+      where: {
+        hash,
       },
       include: {
         ConversationMember: {
@@ -249,23 +201,121 @@ export class MessageService {
       },
     });
 
-    const otherMember = newConversation.ConversationMember?.[0];
+    if (existingConversation) {
+      const participantMember = existingConversation.ConversationMember?.[0];
 
-    if (!otherMember?.User) {
-      throw new BadRequestException('Không thể tạo conversation');
+      if (participantMember?.User) {
+        return {
+          id: existingConversation.id.toString(),
+          participant: {
+            id: participantMember.User.id.toString(),
+            username: participantMember.User.userName,
+            fullName: participantMember.User.fullName || undefined,
+            avatar: participantMember.User.avatar || undefined,
+          },
+          unreadCount: 0,
+          updatedAt: existingConversation.updatedAt.toISOString(),
+        };
+      }
     }
 
-    return {
-      id: newConversation.id.toString(),
-      participant: {
-        id: otherMember.User.id.toString(),
-        username: otherMember.User.userName,
-        fullName: otherMember.User.fullName || undefined,
-        avatar: otherMember.User.avatar || undefined,
-      },
-      unreadCount: 0,
-      updatedAt: newConversation.updatedAt.toISOString(),
-    };
+    // Tạo conversation mới với hash
+    try {
+      const newConversation = await this.prisma.conversation.create({
+        data: {
+          type: 'private',
+          hash,
+          updatedAt: new Date(),
+          ConversationMember: {
+            create: [{ userId }, { userId: participantId }],
+          },
+        },
+        include: {
+          ConversationMember: {
+            where: {
+              userId: participantId,
+            },
+            include: {
+              User: {
+                select: {
+                  id: true,
+                  userName: true,
+                  fullName: true,
+                  avatar: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      const otherMember = newConversation.ConversationMember?.[0];
+
+      if (!otherMember?.User) {
+        throw new BadRequestException('Không thể tạo conversation');
+      }
+
+      return {
+        id: newConversation.id.toString(),
+        participant: {
+          id: otherMember.User.id.toString(),
+          username: otherMember.User.userName,
+          fullName: otherMember.User.fullName || undefined,
+          avatar: otherMember.User.avatar || undefined,
+        },
+        unreadCount: 0,
+        updatedAt: newConversation.updatedAt.toISOString(),
+      };
+    } catch (error: any) {
+      // Nếu lỗi do unique constraint violation (race condition)
+      // Tìm lại conversation đã được tạo bởi request khác
+      const existingConversationRetry =
+        await this.prisma.conversation.findUnique({
+          where: {
+            hash,
+          },
+          include: {
+            ConversationMember: {
+              where: {
+                userId: participantId,
+              },
+              include: {
+                User: {
+                  select: {
+                    id: true,
+                    userName: true,
+                    fullName: true,
+                    avatar: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+
+      if (existingConversationRetry) {
+        const participantMember =
+          existingConversationRetry.ConversationMember?.[0];
+
+        if (participantMember?.User) {
+          return {
+            id: existingConversationRetry.id.toString(),
+            participant: {
+              id: participantMember.User.id.toString(),
+              username: participantMember.User.userName,
+              fullName: participantMember.User.fullName || undefined,
+              avatar: participantMember.User.avatar || undefined,
+            },
+            unreadCount: 0,
+            updatedAt: existingConversationRetry.updatedAt.toISOString(),
+          };
+        }
+      }
+
+      throw new BadRequestException(
+        'Không thể tạo conversation, vui lòng thử lại',
+      );
+    }
   }
 
   /**
@@ -331,6 +381,94 @@ export class MessageService {
   }
 
   /**
+   * Gửi tin nhắn đến một user (tự động tạo conversation nếu chưa có)
+   */
+  async sendMessageToUser(
+    userId: number,
+    sendDto: SendMessageToUserDto,
+  ): Promise<MessageDto> {
+    let recipientId: number;
+    if (typeof sendDto.recipientId === 'string') {
+      recipientId = parseInt(sendDto.recipientId, 10);
+    } else {
+      recipientId = sendDto.recipientId;
+    }
+
+    if (isNaN(recipientId)) {
+      throw new BadRequestException('Invalid recipientId');
+    }
+
+    if (userId === recipientId) {
+      throw new BadRequestException('Không thể gửi tin nhắn cho chính mình');
+    }
+
+    // Kiểm tra user có tồn tại không
+    const recipient = await this.prisma.user.findUnique({
+      where: { id: recipientId },
+    });
+
+    if (!recipient) {
+      throw new NotFoundException('Người dùng không tồn tại');
+    }
+
+    // Tạo hash để tìm conversation đã tồn tại
+    const hash = this.buildHash(userId, recipientId);
+
+    let conversationId: number | null = null;
+
+    // Tìm conversation đã tồn tại thông qua hash
+    const existingConversation = await this.prisma.conversation.findUnique({
+      where: {
+        hash,
+      },
+    });
+
+    if (existingConversation) {
+      conversationId = existingConversation.id;
+    } else {
+      // Nếu chưa có conversation, tạo mới
+      // Unique constraint trên hash sẽ tự động ngăn chặn race condition
+      try {
+        const newConversation = await this.prisma.conversation.create({
+          data: {
+            type: 'private',
+            hash,
+            updatedAt: new Date(),
+            ConversationMember: {
+              create: [{ userId }, { userId: recipientId }],
+            },
+          },
+        });
+
+        conversationId = newConversation.id;
+      } catch (error: any) {
+        // Nếu lỗi do unique constraint violation (race condition)
+        // Tìm lại conversation đã được tạo bởi request khác
+        const existingConversationRetry =
+          await this.prisma.conversation.findUnique({
+            where: {
+              hash,
+            },
+          });
+
+        if (existingConversationRetry) {
+          conversationId = existingConversationRetry.id;
+        } else {
+          // Nếu vẫn không tìm thấy, throw error
+          throw new BadRequestException(
+            'Không thể tạo conversation, vui lòng thử lại',
+          );
+        }
+      }
+    }
+
+    // Gửi tin nhắn trong conversation
+    return this.sendMessage(conversationId, userId, {
+      content: sendDto.content,
+    });
+  }
+
+  /**
    * Gửi tin nhắn
    */
   async sendMessage(
@@ -379,8 +517,27 @@ export class MessageService {
       updatedAt: message.updatedAt.toISOString(),
     };
 
-    // Emit new message via socket
-    await this.messageGateway.emitNewMessage(conversationId, messageDto);
+    // Lấy danh sách tất cả thành viên conversation (bao gồm cả người gửi)
+    const allConversationMembers =
+      await this.prisma.conversationMember.findMany({
+        where: {
+          conversationId,
+          leftedAt: null,
+        },
+        select: {
+          userId: true,
+        },
+      });
+
+    // Lấy danh sách userIds để emit đến tất cả users
+    const userIds = allConversationMembers.map((member) => member.userId);
+
+    // Emit new message đến tất cả users trong conversation (qua cả conversation room và user rooms)
+    this.messageGateway.emitNewMessageToAllUsers(
+      conversationId,
+      messageDto,
+      userIds,
+    );
 
     // Tạo notification cho người nhận (nếu không phải người gửi)
     // Lấy danh sách thành viên conversation để tìm người nhận
@@ -487,7 +644,7 @@ export class MessageService {
 
     // Emit message read event via socket
     if (readCount > 0) {
-      await this.messageGateway.emitMessageRead(conversationId, userId, readCount);
+      this.messageGateway.emitMessageRead(conversationId, userId, readCount);
     }
 
     return {
