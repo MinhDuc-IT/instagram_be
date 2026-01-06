@@ -553,29 +553,33 @@ export class CommentService {
     const rootCommentId = parentComment.parentId ?? parentComment.id;
 
     return {
-      comments: data.map((reply) => ({
-        id: reply.id,
-        postId: reply.postId,
-        userId: reply.userId,
-        username: reply.User.userName,
-        userAvatar: reply.User.avatar ?? undefined,
-        text: reply.content,
-        replyTo: reply.parentId,
-        replyToCommentId: reply.parentId,
-        replyToUser: reply.Comment
-          ? {
-            id: reply.Comment.User.id,
-            userName: reply.Comment.User.userName,
-            avatar: reply.Comment.User.avatar ?? undefined,
-          }
-          : null,
-        rootCommentId,
-        createdAt: reply.createdAt.toISOString(),
-        updatedAt: reply.updatedAt.toISOString(),
-        likesCount: reply._count.CommentLike,
-        repliesCount: 0, // Replies không có nested replies
-        isLiked: userId ? (reply.CommentLike as any[]).length > 0 : undefined,
-      })),
+      comments: await Promise.all(
+        data.map(async (reply) => ({
+          id: reply.id,
+          postId: reply.postId,
+          userId: reply.userId,
+          username: reply.User.userName,
+          userAvatar: reply.User.avatar ?? undefined,
+          text: reply.content,
+          replyTo: reply.parentId,
+          replyToCommentId: reply.parentId,
+          replyToUser: reply.Comment
+            ? {
+              id: reply.Comment.User.id,
+              userName: reply.Comment.User.userName,
+              avatar: reply.Comment.User.avatar ?? undefined,
+            }
+            : null,
+          rootCommentId,
+          createdAt: reply.createdAt.toISOString(),
+          updatedAt: reply.updatedAt.toISOString(),
+          likesCount: reply._count.CommentLike,
+          repliesCount: await this.prisma.comment.count({
+            where: { parentId: reply.id },
+          }),
+          isLiked: userId ? (reply.CommentLike as any[]).length > 0 : undefined,
+        })),
+      ),
       nextCursor,
       hasMore,
       total,

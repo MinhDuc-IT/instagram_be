@@ -103,6 +103,10 @@ export class PostRepository {
                         id: true,
                         userName: true,
                         avatar: true,
+                        Follow_Follow_followingIdToUser: {
+                            where: { followerId: viewerId },
+                            select: { id: true },
+                        },
                     },
                 },
                 UploadedAsset: true,

@@ -478,7 +478,7 @@ export class PostService {
           timestamp:
             post.createdDate?.toISOString() || new Date().toISOString(),
           likes: likesCount,
-          commentsCount: comments.length,
+          commentsCount: await this.prisma.comment.count({ where: { postId: post.id } }),
           comments: mappedComments,
           isLiked: !!existingLike,
           isSaved: !!existingSave,
@@ -625,6 +625,7 @@ export class PostService {
 
       isLiked: p.PostLike.length > 0,
       isSaved: p.postSaves.length > 0,
+      isFollowing: (p.User as any).Follow_Follow_followingIdToUser?.length > 0,
       likeCount: p.isLikesHidden ? null : p._count.PostLike,
       commentsCount: p._count.Comment,
       isCommentsDisabled: p.isCommentsDisabled,
