@@ -3,8 +3,10 @@ import { FollowController } from './follow.controller';
 import { FollowService } from './follow.service';
 import { FollowRepository } from './follow.repository';
 import { PrismaService } from '../../core/prisma/prisma.service';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
+  imports: [NotificationModule],
   controllers: [FollowController],
   providers: [FollowService, FollowRepository, PrismaService],
   exports: [FollowService, FollowRepository],
