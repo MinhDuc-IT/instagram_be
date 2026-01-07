@@ -8,7 +8,7 @@ export class UserService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cacheService: CacheService,
-  ) { }
+  ) {}
 
   async getAllUsers() {
     return this.prisma.user.findMany();
@@ -184,5 +184,53 @@ export class UserService {
     await this.cacheService.delete(cacheKey);
 
     return this.getUserProfile(userId, userId);
+  }
+
+  async searchUsers(query: string, currentUserId?: number, limit: number = 20) {
+    if (!query || query.trim().length === 0) {
+      return [];
+    }
+
+    const searchQuery = query.trim().toLowerCase();
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        AND: [
+          {
+            OR: [
+              { userName: { contains: searchQuery, mode: 'insensitive' } },
+              { fullName: { contains: searchQuery, mode: 'insensitive' } },
+            ],
+          },
+          // Exclude current user if provided
+          currentUserId ? { id: { not: currentUserId } } : {},
+        ],
+      },
+      take: limit,
+      select: {
+        id: true,
+        userName: true,
+        fullName: true,
+        avatar: true,
+        bio: true,
+        Follow_Follow_followingIdToUser: currentUserId
+          ? {
+              where: { followerId: currentUserId },
+              select: { followerId: true },
+            }
+          : false,
+      },
+    });
+
+    return users.map((user) => ({
+      id: user.id,
+      username: user.userName,
+      fullName: user.fullName || '',
+      avatar: user.avatar || '',
+      bio: user.bio || '',
+      isFollowing: currentUserId
+        ? user.Follow_Follow_followingIdToUser.length > 0
+        : false,
+    }));
   }
 }

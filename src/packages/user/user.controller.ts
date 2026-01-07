@@ -1,98 +1,137 @@
 import {
-    Controller,
-    Get,
-    Param,
-    NotFoundException,
-    ParseIntPipe,
-    Req,
-    Post,
-    HttpCode,
-    HttpStatus,
-    BadRequestException,
-    UseGuards,
-} from "@nestjs/common";
-import { UserService } from "./user.service";
-import { FollowService } from "./follow.service";
-import { TransformResponseDto, ResponseMessage } from "src/core/decorators/response.decorator";
-import { GetUserDto } from "./dto/get-user.dto";
-import { FollowToggleResponse } from "./dto/follow.dto";
-import { ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
-import { JwtAuthGuard } from "src/core/guards/jwt-auth.guard";
+  Controller,
+  Get,
+  Param,
+  NotFoundException,
+  ParseIntPipe,
+  Req,
+  Post,
+  HttpCode,
+  HttpStatus,
+  BadRequestException,
+  UseGuards,
+  Query,
+} from '@nestjs/common';
+import { UserService } from './user.service';
+import { FollowService } from './follow.service';
+import {
+  TransformResponseDto,
+  ResponseMessage,
+} from 'src/core/decorators/response.decorator';
+import { GetUserDto } from './dto/get-user.dto';
+import { FollowToggleResponse } from './dto/follow.dto';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { JwtAuthGuard } from 'src/core/guards/jwt-auth.guard';
 import { Patch, Body } from '@nestjs/common';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 
 @ApiTags('Users')
-@Controller("users")
+@Controller('users')
 export class UserController {
-    constructor(
-        private readonly userService: UserService,
-        private readonly followService: FollowService,
-    ) { }
+  constructor(
+    private readonly userService: UserService,
+    private readonly followService: FollowService,
+  ) {}
 
-    @Get()
-    findAll() {
-        return this.userService.getAllUsers();
+  @Get()
+  findAll() {
+    return this.userService.getAllUsers();
+  }
+
+  @Get('search')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Tìm kiếm users theo username hoặc fullName' })
+  @ApiResponse({
+    status: 200,
+    description: 'Search results retrieved successfully',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async searchUsers(
+    @Query('q') query: string,
+    @Req() req: any,
+    @Query('limit') limit?: string,
+  ) {
+    const currentUserId = req.user?.id;
+    const searchLimit = limit ? parseInt(limit, 10) : 20;
+
+    if (!query || query.trim().length === 0) {
+      return [];
     }
 
-    @Get(':id')
-    @UseGuards(JwtAuthGuard)
-    @ApiOperation({ summary: 'Lấy thông tin chi tiết user' })
-    @ApiResponse({ status: 200, description: 'User information retrieved successfully' })
-    @ApiResponse({ status: 404, description: 'User not found' })
-    @TransformResponseDto(GetUserDto)
-    @ResponseMessage('User retrieved successfully')
-    async getUserProfile(
-        @Param('id', ParseIntPipe) userId: number,
-        @Req() req: any
-    ) {
-        const currentUserId = req.user?.id;
-        console.log('Requested User ID:', req.user);
-        console.log('Current User ID from token:', currentUserId);
-        const user = await this.userService.getUserProfile(userId, currentUserId);
+    const results = await this.userService.searchUsers(
+      query,
+      currentUserId,
+      searchLimit,
+    );
+    return results;
+  }
 
-        if (!user) {
-            throw new NotFoundException('User not found');
-        }
+  @Get(':id')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Lấy thông tin chi tiết user' })
+  @ApiResponse({
+    status: 200,
+    description: 'User information retrieved successfully',
+  })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  @TransformResponseDto(GetUserDto)
+  @ResponseMessage('User retrieved successfully')
+  async getUserProfile(
+    @Param('id', ParseIntPipe) userId: number,
+    @Req() req: any,
+  ) {
+    const currentUserId = req.user?.id;
+    console.log('Requested User ID:', req.user);
+    console.log('Current User ID from token:', currentUserId);
+    const user = await this.userService.getUserProfile(userId, currentUserId);
 
-        return user;
+    if (!user) {
+      throw new NotFoundException('User not found');
     }
 
-    @Post(':userId/follow')
-    @UseGuards(JwtAuthGuard)
-    @HttpCode(HttpStatus.OK)
-    @ApiOperation({ summary: 'Toggle follow/unfollow user' })
-    @ApiResponse({ status: 200, description: 'Follow toggled successfully' })
-    @ApiResponse({ status: 404, description: 'User not found' })
-    @ApiResponse({ status: 400, description: 'Bad request (cannot follow yourself)' })
-    @ApiResponse({ status: 401, description: 'Unauthorized' })
-    @TransformResponseDto(FollowToggleResponse)
-    @ResponseMessage('Toggled follow')
-    async toggleFollow(
-        @Param('userId', ParseIntPipe) targetUserId: number,
-        @Req() req: any,
-    ) {
-        const followerUserId = req.user?.id;
-        if (!followerUserId) {
-            throw new BadRequestException('User not found in token');
-        }
+    return user;
+  }
 
-        return await this.followService.toggleFollow(targetUserId, followerUserId);
+  @Post(':userId/follow')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Toggle follow/unfollow user' })
+  @ApiResponse({ status: 200, description: 'Follow toggled successfully' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request (cannot follow yourself)',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @TransformResponseDto(FollowToggleResponse)
+  @ResponseMessage('Toggled follow')
+  async toggleFollow(
+    @Param('userId', ParseIntPipe) targetUserId: number,
+    @Req() req: any,
+  ) {
+    const followerUserId = req.user?.id;
+    if (!followerUserId) {
+      throw new BadRequestException('User not found in token');
     }
 
-    @Patch('me')
-    @UseGuards(JwtAuthGuard)
-    @ApiBearerAuth()
-    @ApiOperation({ summary: 'Cập nhật profile của user đăng nhập' })
-    @ApiResponse({ status: 200, description: 'Profile updated successfully' })
-    @ApiResponse({ status: 400, description: 'Bad request' })
-    @ApiResponse({ status: 401, description: 'Unauthorized' })
-    @ApiBody({ type: UpdateUserDto })
-    async updateMyProfile(@Body() dto: UpdateUserDto, @Req() req: any) {
-        const userId = req.user?.id;
-        if (!userId) throw new BadRequestException('User not found in token');
+    return await this.followService.toggleFollow(targetUserId, followerUserId);
+  }
 
-        const updated = await this.userService.updateProfile(userId, dto as any);
-        return updated;
-    }
+  @Patch('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Cập nhật profile của user đăng nhập' })
+  @ApiResponse({ status: 200, description: 'Profile updated successfully' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiBody({ type: UpdateUserDto })
+  async updateMyProfile(@Body() dto: UpdateUserDto, @Req() req: any) {
+    const userId = req.user?.id;
+    if (!userId) throw new BadRequestException('User not found in token');
+
+    const updated = await this.userService.updateProfile(userId, dto as any);
+    return updated;
+  }
 }
