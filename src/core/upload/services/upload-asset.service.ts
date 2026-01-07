@@ -16,6 +16,7 @@ export class UploadAssetService {
         folder: string,
         postId: string | null,
         storyId?: number,
+        filter?: string,
     ) {
         try {
             const asset = await this.prisma.uploadedAsset.create({
@@ -34,6 +35,7 @@ export class UploadAssetService {
                     tags: JSON.stringify(['upload', type]),
                     postId: postId,
                     storyId: storyId,
+                    filter: filter,
                 },
             });
 

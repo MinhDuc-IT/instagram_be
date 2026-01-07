@@ -44,4 +44,11 @@ export class CreatePostDto {
   })
   @IsOptional()
   files?: Express.Multer.File[];
+
+  @ApiPropertyOptional({
+    description: 'Danh sách filter cho từng file (JSON string array)',
+    type: 'string',
+  })
+  @IsOptional()
+  filters?: string | string[];
 }

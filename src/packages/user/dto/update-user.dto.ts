@@ -21,4 +21,14 @@ export class UpdateUserDto {
     @IsOptional()
     @IsInt()
     gender?: number;
+
+    @ApiPropertyOptional({ description: 'Bio' })
+    @IsOptional()
+    @IsString()
+    bio?: string;
+
+    @ApiPropertyOptional({ description: 'Website URL' })
+    @IsOptional()
+    @IsUrl()
+    website?: string;
 }

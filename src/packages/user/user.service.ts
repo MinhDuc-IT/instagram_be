@@ -134,7 +134,8 @@ export class UserService {
       email: user.email,
       avatar: user.avatar || '',
       fullName: user.fullName || '',
-      bio: '', // TODO: Add bio field to User model if needed
+      bio: user.bio || '',
+      website: user.website || '',
       gender: user.gender,
       phone: user.phone || '',
       followers: followersCount,
@@ -161,6 +162,8 @@ export class UserService {
       avatar?: string;
       phone?: string;
       gender?: number;
+      bio?: string;
+      website?: string;
     },
   ) {
     const updateData: any = {};
@@ -168,6 +171,8 @@ export class UserService {
     if (data.avatar !== undefined) updateData.avatar = data.avatar;
     if (data.phone !== undefined) updateData.phone = data.phone;
     if (data.gender !== undefined) updateData.gender = data.gender;
+    if (data.bio !== undefined) updateData.bio = data.bio;
+    if (data.website !== undefined) updateData.website = data.website;
 
     const updated = await this.prisma.user.update({
       where: { id: userId },
@@ -179,5 +184,53 @@ export class UserService {
     await this.cacheService.delete(cacheKey);
 
     return this.getUserProfile(userId, userId);
+  }
+
+  async searchUsers(query: string, currentUserId?: number, limit: number = 20) {
+    if (!query || query.trim().length === 0) {
+      return [];
+    }
+
+    const searchQuery = query.trim().toLowerCase();
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        AND: [
+          {
+            OR: [
+              { userName: { contains: searchQuery, mode: 'insensitive' } },
+              { fullName: { contains: searchQuery, mode: 'insensitive' } },
+            ],
+          },
+          // Exclude current user if provided
+          currentUserId ? { id: { not: currentUserId } } : {},
+        ],
+      },
+      take: limit,
+      select: {
+        id: true,
+        userName: true,
+        fullName: true,
+        avatar: true,
+        bio: true,
+        Follow_Follow_followingIdToUser: currentUserId
+          ? {
+              where: { followerId: currentUserId },
+              select: { followerId: true },
+            }
+          : false,
+      },
+    });
+
+    return users.map((user) => ({
+      id: user.id,
+      username: user.userName,
+      fullName: user.fullName || '',
+      avatar: user.avatar || '',
+      bio: user.bio || '',
+      isFollowing: currentUserId
+        ? user.Follow_Follow_followingIdToUser.length > 0
+        : false,
+    }));
   }
 }
