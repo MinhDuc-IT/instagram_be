@@ -79,8 +79,19 @@ export class PostService {
       },
     });
 
-    for (const file of files) {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
       const filePath = writeTempFile(file.buffer, file.originalname);
+      let filter: string | undefined = undefined;
+
+      if (dto.filters) {
+        const filterArray = Array.isArray(dto.filters)
+          ? dto.filters
+          : typeof dto.filters === 'string'
+            ? JSON.parse(dto.filters)
+            : [];
+        filter = filterArray[i];
+      }
 
       try {
         const isVideo = file.mimetype.startsWith('video/');
@@ -104,6 +115,8 @@ export class PostService {
             ? UPLOAD_CONSTANTS.VIDEO_FOLDER
             : UPLOAD_CONSTANTS.IMAGE_FOLDER,
           post.id,
+          undefined,
+          filter,
         );
       } finally {
         deleteTempFile(filePath);
@@ -146,7 +159,8 @@ export class PostService {
       },
     });
 
-    for (const file of files) {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
       // Create job record
       const job = await this.backgroundJobRepository.create({
         type: 'mixed',
@@ -159,23 +173,34 @@ export class PostService {
       });
 
       const isVideo = file.mimetype.startsWith('video/');
-      // const ext = path.extname(file.originalname);
-      // const tmpFile = tmp.fileSync({ postfix: ext });
-      // fs.writeFileSync(tmpFile.name, file.buffer);
       const filePath = writeTempFile(file.buffer, file.originalname);
       this.logger.log(`Temporary file created at: ${filePath}`);
+
+      let filter: string | undefined = undefined;
+      if (dto.filters) {
+        try {
+          const filterArray = Array.isArray(dto.filters)
+            ? dto.filters
+            : typeof dto.filters === 'string'
+              ? JSON.parse(dto.filters)
+              : [];
+          filter = filterArray[i];
+        } catch (e) {
+          this.logger.warn(`Failed to parse filters: ${e.message}`);
+        }
+      }
 
       try {
         await this.uploadQueue.add(
           isVideo ? JOB_TYPES.UPLOAD_VIDEO : JOB_TYPES.UPLOAD_IMAGE,
           {
             jobId: job.id,
-            // fileBase64: file.buffer.toString('base64'),
             filePath: filePath,
             fileName: file.originalname,
             type: isVideo ? 'video' : 'image',
             postId: post.id,
             userId,
+            filter: filter,
           },
           {
             attempts: 3,
@@ -308,6 +333,7 @@ export class PostService {
         height: m.height ?? null,
         duration: m.duration ?? null,
         fileSize: m.fileSize,
+        filter: m.filter,
       })),
       timestamp: post.createdDate?.toISOString() || new Date().toISOString(),
       likes: likesCount,
@@ -536,6 +562,7 @@ export class PostService {
         height: m.height ?? null,
         duration: m.duration ?? null,
         fileSize: m.fileSize,
+        filter: m.filter,
       })),
 
       isLiked: p.PostLike.length > 0,
@@ -701,6 +728,7 @@ export class PostService {
             height: m.height ?? null,
             duration: m.duration ?? null,
             fileSize: m.fileSize,
+            filter: m.filter,
           })),
           timestamp:
             post.createdDate?.toISOString() || new Date().toISOString(),
@@ -722,7 +750,20 @@ export class PostService {
       userId: p.User.id,
       username: p.User.userName,
       userAvatar: p.User.avatar,
-      media: p.UploadedAsset,
+      media: p.UploadedAsset.map((m: any) => ({
+        id: m.id,
+        publicId: m.publicId,
+        type: m.type,
+        fileName: m.fileName,
+        url: m.url,
+        secureUrl: m.secureUrl,
+        format: m.format,
+        width: m.width ?? null,
+        height: m.height ?? null,
+        duration: m.duration ?? null,
+        fileSize: m.fileSize,
+        filter: m.filter,
+      })),
     };
   }
 }

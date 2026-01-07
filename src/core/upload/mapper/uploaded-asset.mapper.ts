@@ -18,6 +18,7 @@ export class UploadedAssetMapper {
             height: entity.height || undefined,
             duration: entity.duration || undefined,
             fileSize: entity.fileSize,
+            filter: entity.filter || undefined,
             timestamp: entity.createdDate,
         };
     }

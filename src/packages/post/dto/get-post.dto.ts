@@ -33,6 +33,9 @@ export class MediaDto {
 
   @Expose()
   fileSize: number;
+
+  @Expose()
+  filter?: string | null;
 }
 
 export class CommentDto {
