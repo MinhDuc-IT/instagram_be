@@ -16,6 +16,7 @@ interface UploadJobData {
     postId: string | null;
     storyId?: number;
     type: 'image' | 'video';
+    filter?: string;
 }
 
 @Processor(UPLOAD_CONSTANTS.QUEUE_NAME)
@@ -46,7 +47,7 @@ export class UploadProcessor {
 
     @Process(JOB_TYPES.UPLOAD_IMAGE)
     async handleImageUpload(job: Job<UploadJobData>) {
-        const { jobId, fileBase64, fileName, postId, filePath} = job.data;
+        const { jobId, fileBase64, fileName, postId, filePath, filter } = job.data;
 
         try {
             this.logger.log(`Processing image upload job: ${jobId}`);
@@ -63,13 +64,15 @@ export class UploadProcessor {
             await job.progress(70);
             await this.backgroundJobRepository.updateStatus(jobId, 'processing', 70);
 
-            if(postId != null){
+            if (postId != null) {
                 await this.uploadAssetService.saveAsset(
                     result,
                     'image',
                     fileName,
                     UPLOAD_CONSTANTS.IMAGE_FOLDER,
                     postId,
+                    undefined,
+                    filter,
                 );
             }
 
@@ -90,7 +93,7 @@ export class UploadProcessor {
 
     @Process(JOB_TYPES.UPLOAD_VIDEO)
     async handleVideoUpload(job: Job<UploadJobData>) {
-        const { jobId, fileBase64, fileName, postId, filePath } = job.data;
+        const { jobId, fileBase64, fileName, postId, filePath, filter } = job.data;
 
         try {
             this.logger.log(`Processing video upload job: ${jobId}`);
@@ -114,6 +117,8 @@ export class UploadProcessor {
                     fileName,
                     UPLOAD_CONSTANTS.VIDEO_FOLDER,
                     postId,
+                    undefined,
+                    filter,
                 );
             }
 

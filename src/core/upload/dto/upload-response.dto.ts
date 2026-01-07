@@ -43,6 +43,9 @@ export class UploadResponseDto {
   @ApiProperty({ required: false })
   error?: string;
 
+  @ApiProperty({ required: false })
+  filter?: string;
+
   @ApiProperty()
   timestamp: Date;
 }
