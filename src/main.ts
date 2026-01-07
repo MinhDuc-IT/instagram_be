@@ -14,7 +14,7 @@ async function bootstrap() {
 
   // CORS
   app.enableCors({
-    origin: ['http://localhost:3000', 'http://localhost:5173'],
+    origin: true,
     credentials: true,
     allowedHeaders: 'Content-Type, Authorization, Cookie',
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
@@ -25,25 +25,27 @@ async function bootstrap() {
   app.useGlobalPipes(new ZodValidationPipe());
 
   // Swagger
-  const config = new DocumentBuilder()
-    .setTitle('Instagram API')
-    .setDescription('API system for Instagram')
-    .setLicense('MIT', 'https://opensource.org/licenses/MIT')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .addCookieAuth(
-      'sb-csso-auth-token',
-      {
-        type: 'apiKey',
-        in: 'cookie',
-        name: 'sb-csso-auth-token',
-      },
-      'cookie-auth',
-    )
-    .build();
+  if (process.env.NODE_ENV !== 'production') {
+    const config = new DocumentBuilder()
+      .setTitle('Instagram API')
+      .setDescription('API system for Instagram')
+      .setLicense('MIT', 'https://opensource.org/licenses/MIT')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .addCookieAuth(
+        'sb-csso-auth-token',
+        {
+          type: 'apiKey',
+          in: 'cookie',
+          name: 'sb-csso-auth-token',
+        },
+        'cookie-auth',
+      )
+      .build();
 
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('docs', app, document);
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('docs', app, document);
+  }
 
   // Bull Board
   const uploadQueue = app.get(getQueueToken(UPLOAD_CONSTANTS.QUEUE_NAME));
@@ -58,11 +60,14 @@ async function bootstrap() {
   app.use('/admin/queues', serverAdapter.getRouter());
 
   // Start server
-  const port = process.env.PORT ?? 8080;
-  await app.listen(port);
+  const port = process.env.PORT ?? 3000;
+  await app.listen(port, '0.0.0.0');
+
   console.log(`🚀 Server is running on http://localhost:${port}`);
   console.log(`📊 Bull Board available at http://localhost:${port}/admin/queues`);
-  console.log(`📘 Swagger docs available at http://localhost:${port}/docs`);
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`📘 Swagger docs available at http://localhost:${port}/docs`);
+  }
 }
 
 bootstrap();
