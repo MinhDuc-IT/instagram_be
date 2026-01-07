@@ -29,6 +29,8 @@ model User {
   deletedBy                                  String?
   fullName                                   String?
   avatar                                     String?
+  bio                                        String?
+  website                                    String?
   loginType                                  String               @default("LOCAL")
   loginToken                                 String?              @unique
   Comment                                    Comment[]

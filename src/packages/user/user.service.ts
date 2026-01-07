@@ -8,7 +8,7 @@ export class UserService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cacheService: CacheService,
-  ) {}
+  ) { }
 
   async getAllUsers() {
     return this.prisma.user.findMany();
@@ -134,7 +134,8 @@ export class UserService {
       email: user.email,
       avatar: user.avatar || '',
       fullName: user.fullName || '',
-      bio: '', // TODO: Add bio field to User model if needed
+      bio: user.bio || '',
+      website: user.website || '',
       gender: user.gender,
       phone: user.phone || '',
       followers: followersCount,
@@ -161,6 +162,8 @@ export class UserService {
       avatar?: string;
       phone?: string;
       gender?: number;
+      bio?: string;
+      website?: string;
     },
   ) {
     const updateData: any = {};
@@ -168,6 +171,8 @@ export class UserService {
     if (data.avatar !== undefined) updateData.avatar = data.avatar;
     if (data.phone !== undefined) updateData.phone = data.phone;
     if (data.gender !== undefined) updateData.gender = data.gender;
+    if (data.bio !== undefined) updateData.bio = data.bio;
+    if (data.website !== undefined) updateData.website = data.website;
 
     const updated = await this.prisma.user.update({
       where: { id: userId },
