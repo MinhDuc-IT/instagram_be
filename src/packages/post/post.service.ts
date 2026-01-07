@@ -333,6 +333,7 @@ export class PostService {
         height: m.height ?? null,
         duration: m.duration ?? null,
         fileSize: m.fileSize,
+        filter: m.filter,
       })),
       timestamp: post.createdDate?.toISOString() || new Date().toISOString(),
       likes: likesCount,
@@ -561,6 +562,7 @@ export class PostService {
         height: m.height ?? null,
         duration: m.duration ?? null,
         fileSize: m.fileSize,
+        filter: m.filter,
       })),
 
       isLiked: p.PostLike.length > 0,
