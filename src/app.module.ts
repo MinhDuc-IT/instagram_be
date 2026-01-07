@@ -18,12 +18,11 @@ import { MessageModule } from './packages/message/message.module';
 import { NotificationModule } from './packages/notification/notification.module';
 import { FollowModule } from './packages/follow/follow.module';
 import { StoryModule } from './packages/story/story.module';
+import { AiCaptionModule } from './packages/ai-caption/ai-caption.module';
 
 @Module({
   imports: [
     _ConfigModule,
-    ConfigModule.forRoot(),
-    ConfigModule,
     CacheModule,
     EmailModule,
     UserModule,
@@ -35,6 +34,7 @@ import { StoryModule } from './packages/story/story.module';
     ReelsModule,
     FollowModule,
     StoryModule,
+    AiCaptionModule,
   ],
   controllers: [AppController],
   providers: [
@@ -46,4 +46,4 @@ import { StoryModule } from './packages/story/story.module';
     // },
   ],
 })
-export class AppModule {}
+export class AppModule { }
