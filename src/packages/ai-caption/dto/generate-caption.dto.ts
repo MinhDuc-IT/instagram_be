@@ -11,6 +11,13 @@ export enum CaptionIntent {
     SELL = 'sell',
     VIRAL = 'viral',
     STORY = 'story',
+    REVIEWS = 'reviews',
+    PROMOTION = 'promotion',
+    EDUCATION = 'education',
+    INSPIRATION = 'inspiration',
+    TIPS = 'tips',
+    QUOTES = 'quotes',
+    HUMOR = 'humor',
 }
 
 export enum CaptionTone {
@@ -75,4 +82,11 @@ export class GenerateCaptionDto {
     @Min(1)
     @Max(5)
     maxVariants?: number = 3;
+
+    @ApiPropertyOptional({
+        description: 'Optional image URL to analyze'
+    })
+    @IsOptional()
+    @IsString()
+    imageUrl?: string;
 }
