@@ -22,7 +22,7 @@ export class MessageService {
     @Inject(forwardRef(() => MessageGateway))
     private readonly messageGateway: MessageGateway,
     private readonly notificationService: NotificationService,
-  ) {}
+  ) { }
 
   /**
    * Tạo hash để đảm bảo không có 2 conversation private giữa cùng 2 user
@@ -109,19 +109,22 @@ export class MessageService {
           id: conversation.id.toString(),
           participant: otherMember?.User
             ? {
-                id: otherMember.User.id.toString(),
-                username: otherMember.User.userName,
-                fullName: otherMember.User.fullName || undefined,
-                avatar: otherMember.User.avatar || undefined,
-              }
+              id: otherMember.User.id.toString(),
+              username: otherMember.User.userName,
+              fullName: otherMember.User.fullName || undefined,
+              avatar: otherMember.User.avatar || undefined,
+            }
             : null,
           lastMessage: lastMessage
             ? {
-                id: lastMessage.id.toString(),
-                content: lastMessage.content || '',
-                senderId: lastMessage.senderId.toString(),
-                createdAt: lastMessage.createdAt.toISOString(),
-              }
+              id: lastMessage.id.toString(),
+              content:
+                lastMessage.messageType === 'image'
+                  ? 'Đã gửi một ảnh'
+                  : lastMessage.content || '',
+              senderId: lastMessage.senderId.toString(),
+              createdAt: lastMessage.createdAt.toISOString(),
+            }
             : undefined,
           unreadCount: actualUnreadCount,
           updatedAt: conversation.updatedAt.toISOString(),
@@ -372,6 +375,8 @@ export class MessageService {
         conversationId: msg.conversationId.toString(),
         senderId: msg.senderId.toString(),
         content: msg.content || '',
+        messageType: msg.messageType,
+        mediaUrl: msg.mediaUrl || undefined,
         createdAt: msg.createdAt.toISOString(),
         updatedAt: msg.updatedAt.toISOString(),
       })),
@@ -465,6 +470,8 @@ export class MessageService {
     // Gửi tin nhắn trong conversation
     return this.sendMessage(conversationId, userId, {
       content: sendDto.content,
+      mediaUrl: sendDto.mediaUrl,
+      messageType: sendDto.messageType,
     });
   }
 
@@ -497,7 +504,8 @@ export class MessageService {
         conversationId,
         senderId: userId,
         content: sendDto.content,
-        messageType: 'text',
+        messageType: sendDto.messageType || 'text',
+        mediaUrl: sendDto.mediaUrl,
         updatedAt: new Date(),
       },
     });
@@ -513,6 +521,8 @@ export class MessageService {
       conversationId: message.conversationId.toString(),
       senderId: message.senderId.toString(),
       content: message.content || '',
+      messageType: message.messageType,
+      mediaUrl: message.mediaUrl || undefined,
       createdAt: message.createdAt.toISOString(),
       updatedAt: message.updatedAt.toISOString(),
     };
