@@ -59,7 +59,6 @@ export class UserController {
     if (!query || query.trim().length === 0) {
       return [];
     }
-
     const results = await this.userService.searchUsers(
       query,
       currentUserId,

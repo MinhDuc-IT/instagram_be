@@ -6,7 +6,6 @@ export class ReelsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async findReelsPagination(limit: number, cursor?: string, userId?: number) {
-
     const posts = await this.prisma.post.findMany({
       where: {
         deleted: false,
@@ -31,6 +30,16 @@ export class ReelsRepository {
             userName: true,
             fullName: true,
             avatar: true,
+            Follow_Follow_followingIdToUser: userId
+              ? {
+                  where: {
+                    followerId: userId,
+                  },
+                  select: {
+                    id: true,
+                  },
+                }
+              : false,
           },
         },
         UploadedAsset: {
@@ -122,11 +131,16 @@ export class ReelsRepository {
       caption: post.caption ?? undefined,
       location: post.location ?? undefined,
       createdDate: post.createdDate,
+      isCommentsDisabled: post.isCommentsDisabled,
       User: {
         id: post.User.id,
         userName: post.User.userName,
         fullName: post.User.fullName ?? undefined,
         avatar: post.User.avatar ?? undefined,
+        isFollowing:
+          userId && post.User.Follow_Follow_followingIdToUser
+            ? post.User.Follow_Follow_followingIdToUser.length > 0
+            : undefined,
       },
       video: {
         id: post.UploadedAsset[0].id,
